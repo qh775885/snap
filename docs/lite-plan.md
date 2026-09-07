@@ -1,42 +1,47 @@
-# 极简轻量化路线规划 (Branch: lite)
+# 「快门 (Snap)」极简轻量化路线规划
 
-> 目标：将体积从 435MB 压缩至 30MB 左右，保留全部现有视频截图、优选与横转竖功能，仅交付免安装绿色版。
-
-## 1. 架构变革方案
-
-| 模块 | 旧方案 (main) | 极简方案 (lite) |
-| :--- | :--- | :--- |
-| **GUI 容器** | Electron (Chromium + Node.js ~200MB) | Tauri 2.0 (系统自带 WebView2 ~10MB) |
-| **系统后端** | Node.js (electron-main.js) | Rust Commands (原生多线程与管道) |
-| **前端应用** | React 19 + Tailwind CSS | 保留 100% 现有前端代码，仅替换 IPC 驱动层 |
-| **视频引擎** | ffmpeg-static 通用包 (~79MB) | 裁剪版 FFmpeg (~12MB) 或独立按需加载 |
-| **交付产物** | NSIS 安装版 / 目录绿色版 | **仅保留便携绿色版 (Portable)** |
+> 分支：`lite`  
+> 软件名：**快门**  
+> 英文/仓库简写：**`snap`**  
+> 核心定位：像单反相机一样纯粹高效的“取景-快门-清点”本地视频截图利器。
 
 ---
 
-## 2. 核心迁移与改造清单
+## 1. 核心架构与三大功能基石
 
-### A. 前端 IPC 抽象层 (前端零破坏)
-- 封装统一的 `src/services/bridge.js`，抹平 Electron 的 `ipcRenderer.invoke` 与 Tauri 的 `@tauri-apps/api/core::invoke`。
-- 移除前端所有 `window.require('electron')`、`window.require('fs')` 等 Node 原生调用，改为通过 Bridge 请求 Rust。
+彻底抛弃早期 AI 跟踪、复杂后台批处理等一切低收益负担，整个工具聚焦于三大极致手感：
 
-### B. Rust 后端平替 (预计 200 行以内)
-- `select_folder`：调用原生文件夹选取对话框。
-- `open_folder`：原生系统资源管理器打开。
-- `get_video_info`：通过子进程调用 ffmpeg 读取时长/分辨率/FPS。
-- `process_media`：处理特殊封装/转码（如 HEVC、IDM 错误流）。
-- `extract_frames` / `extract_frames_smart`：执行管道批处理抽帧。
+1. **取景器 (Viewfinder)**
+   - 依赖系统 WebView2 硬件加速硬解。
+   - 键盘/快捷键“固定节拍 + seeked 门控”连续平滑步进，像高刷胶片机一样绝不跳帧、绝不卡顿，看清每一帧微表情。
+2. **快门直裁 (Shutter & Framing)**
+   - 画面常驻半透明裁切框（9:16 / 3:4 / 1:1），支持滚轮/拖动调整。
+   - 鼠标侧键 / S 键毫秒级快门击发，截取 + 裁剪 + 异步写盘一气呵成，快门声反馈，零打断感。
+3. **靶场图库 (Gallery & Cull)**
+   - 拍摄所得实时在右侧大缩略图排列。
+   - 键盘流极速清点：`Del` 键秒删单张，支持多选与批量清除，快速从数十张抓拍中淘汰废片。
 
-### C. FFmpeg 极限瘦身
-- 准备一个专用于本项目的 Minified FFmpeg 二进制（只留 demuxers: mp4/mkv/flv/mov, decoders: h264/hevc/vp9, encoders: mjpeg, filters: fps/scale/mpdecimate）。
+---
+
+## 2. 技术栈演进
+
+| 模块 | 旧方案 | 新方案 (Snap) |
+| :--- | :--- | :--- |
+| **软件名称** | 视频截图神器 (video-ppp) | **快门 (snap)** |
+| **桌面宿主** | Electron (Chromium + Node.js ~200MB) | **Tauri 2.0 (系统 WebView2 ~5-10MB)** |
+| **系统后端** | Node.js (300 行 IPC) | **Rust Commands** (极简文件与系统调用) |
+| **前端界面** | React 19 + Tailwind CSS | **保持 React 19**，彻底剥离 Electron API |
+| **交付形态** | 安装版 + 目录绿色版 (435MB) | **仅交付免安装纯绿色版 (~25-30MB)** |
 
 ---
 
 ## 3. 明日开工执行顺序
 
-1. **环境准备**：检查并配置 Rust (rustup / cargo) 与 WebView2 编译环境。
-2. **脚手架初始化**：在本项目根目录执行 `cargo tauri init`，建立 `src-tauri` 架构。
-3. **Rust Commands 实现**：逐一移植 `electron-main.js` 中的 5 个核心 IPC 处理函数。
-4. **前端 Bridge 接入**：无缝桥接前端并运行开发预览 (`npm run tauri dev`)。
-5. **清理冗余**：移除 Electron、electron-builder、concurrently 等过时依赖。
-6. **产物构建与体积验收**：验证单版本绿色版输出体积与抽帧性能。
+1. **安装 Rust 环境**：配置 `rustup` 与 `cargo`。
+2. **初始化 Tauri 2.0**：搭建 `src-tauri`。
+3. **实现核心 Rust 命令**：文件对话框、系统打开目录、图片保存。
+4. **前端重构收敛**：
+   - 移除所有旧版 AI 跟踪、复杂提取相关残留代码。
+   - 打磨“丝滑步进”与“快门击发”手感。
+   - 重构“靶场图库”（支持单张 Del、多选与极速清点）。
+5. **清理 Electron 依赖并验证免安装绿色版打包**。
