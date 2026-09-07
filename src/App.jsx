@@ -328,7 +328,7 @@ function App() {
     };
     // --- Persistence ---
     useEffect(() => {
-        const saved = localStorage.getItem('video-ppp-cache-dir');
+        const saved = localStorage.getItem('snap-cache-dir') || localStorage.getItem('video-ppp-cache-dir');
         if (saved) setCacheDir(saved);
     }, []);
 
@@ -346,7 +346,7 @@ function App() {
             const path = await ipcRenderer.invoke('select-folder');
             if (path) {
                 setCacheDir(path);
-                localStorage.setItem('video-ppp-cache-dir', path);
+                localStorage.setItem('snap-cache-dir', path);
             }
         } catch (e) {
             console.error("Select folder failed:", e);

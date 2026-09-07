@@ -408,10 +408,10 @@ export function Sidebar({ frames, onClear, onDeleteFrame, onRestoreFrame, onPort
                             <span className="text-[10px] text-zinc-500">项目主页</span>
                             <a
                                 href="#"
-                                onClick={(e) => { e.preventDefault(); window.require('electron').shell.openExternal('https://qh775885.github.io/video-ppp/'); }}
+                                onClick={(e) => { e.preventDefault(); window.require('electron').shell.openExternal('https://qh775885.github.io/snap/'); }}
                                 className="text-indigo-400 hover:text-indigo-300 hover:underline text-[11px] font-mono transition-colors"
                             >
-                                https://qh775885.github.io/video-ppp/
+                                https://qh775885.github.io/snap/
                             </a>
                         </div>
                     </div>
