@@ -12,16 +12,9 @@
 - 修改后优先做最小验证，需要构建时用 `npm run build` 或 `npx vite build`
 - 同类开发进程已在运行时，不重复启动
 
-## 提交
-- commit message 使用中文
-- 格式：`类型: 描述`
-- 类型：`feat`、`fix`、`docs`、`refactor`、`rules`
-
 ## 版本与文档
-- 版本号只在 `package.json` 维护，UI 版本号必须从中读取
-- 只有在用户确认功能或修复有效后，才更新版本号
-- 完成功能或修复后更新 `开发进度.md`
-- 发布前更新 `CHANGELOG.md`
+- UI 版本号必须从 `package.json` 读取
+- 完成功能或修复后更新 `开发进度.md`，发布前更新 `CHANGELOG.md`
 - 项目说明、维护规则、技术记录统一放在 `docs/project-notes.md`
 
 ## 技术约束
