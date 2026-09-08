@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Camera, FolderOpen, Video, Maximize2, HelpCircle } from 'lucide-react';
+import { Camera, FolderOpen, Video, Maximize2, Crop } from 'lucide-react';
 import { VideoStage } from './components/VideoStage';
 import { Gallery } from './components/Gallery';
 import { selectFolder, selectVideoFile, saveSnapshot, deleteSnapshot, toAssetUrl, setupNativeFileDrop } from './bridge';
@@ -202,13 +202,26 @@ export function App() {
                         onClick={() => setCropMode('full')}
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition ${
                             cropMode === 'full'
-                                ? 'bg-zinc-750 text-white font-medium shadow-sm bg-zinc-800 border border-white/[0.08]'
+                                ? 'bg-zinc-800 text-white font-medium shadow-sm border border-white/[0.08]'
                                 : 'text-zinc-400 hover:text-zinc-200'
                         }`}
                         title="全屏原图（100% 原始画幅完整抓取）"
                     >
                         <Maximize2 className="w-3 h-3" />
                         <span>原画全屏</span>
+                    </button>
+
+                    <button
+                        onClick={() => setCropMode('free')}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition ${
+                            cropMode === 'free'
+                                ? 'bg-zinc-800 text-white font-medium shadow-sm border border-white/[0.08]'
+                                : 'text-zinc-400 hover:text-zinc-200'
+                        }`}
+                        title="自由比例（拖拽框边角任意缩放）"
+                    >
+                        <Crop className="w-3 h-3" />
+                        <span>自由</span>
                     </button>
 
                     {['9:16', '3:4', '1:1', '4:5'].map(ratio => (
@@ -220,7 +233,7 @@ export function App() {
                                     ? 'bg-zinc-800 text-white font-medium shadow-sm border border-white/[0.08]'
                                     : 'text-zinc-400 hover:text-zinc-200'
                             }`}
-                            title={`构图直裁：${ratio}`}
+                            title={`固定比例：${ratio}`}
                         >
                             {ratio}
                         </button>
@@ -253,6 +266,7 @@ export function App() {
                         videoMeta={videoMeta}
                         onFileLoaded={handleFileLoaded}
                         cropMode={cropMode}
+                        onCropModeChange={setCropMode}
                         cropOffset={cropOffset}
                         onCropOffsetChange={setCropOffset}
                         onShutterCapture={handleShutterCapture}

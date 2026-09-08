@@ -6,7 +6,8 @@ export function VideoStage({
     videoSource,       // File 对象或本地路径字符串
     videoMeta,         // { name, path }
     onFileLoaded,      // 拖拽或选择新视频
-    cropMode = 'full', // 'full' (全屏原画) | '9:16' | '3:4' | '1:1' | '4:5' | 'free' (自由框选)
+    cropMode = 'full', // 'full' (全屏原画) | 'free' (自由框选) | '9:16' | '3:4' | '1:1' | '4:5'
+    onCropModeChange,  // 构图模式切换回调 (mode => void)
     cropOffset = 0,    // -1 (最左) 到 1 (最右)
     onCropOffsetChange,
     onShutterCapture,  // 截图回调 ({ base64, width, height, timeSec })
@@ -465,7 +466,88 @@ export function VideoStage({
         triggerShutter();
     };
 
-    // ===== 5. 裁切框鼠标拖动与滚轮调整 =====
+    // ===== 5. 裁切框边角拖动调整 (自由比例模式切换与缩放) =====
+    const handleResizeMouseDown = (direction, e) => {
+        if (e.button !== 0 || cropMode === 'full') return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const vw = boxLayout.videoWidth;
+        const vh = boxLayout.videoHeight;
+        if (!vw || !vh) return;
+
+        // 获取当前框在视频内的归一化比例坐标
+        let startRect;
+        if (cropMode === 'free') {
+            startRect = { ...freeCropRect };
+        } else {
+            // 从固定比例无缝切入自由模式：以当前框的屏幕真实几何为初始比例
+            const curX = (boxLayout.boxX - boxLayout.videoLeft) / vw;
+            const curY = (boxLayout.boxY - boxLayout.videoTop) / vh;
+            const curW = boxLayout.boxWidth / vw;
+            const curH = boxLayout.boxHeight / vh;
+            startRect = {
+                x: Math.max(0, Math.min(1 - curW, curX)),
+                y: Math.max(0, Math.min(1 - curH, curY)),
+                w: Math.max(0.05, Math.min(1, curW)),
+                h: Math.max(0.05, Math.min(1, curH)),
+            };
+            setFreeCropRect(startRect);
+            if (onCropModeChange) {
+                onCropModeChange('free');
+            }
+        }
+
+        const startMouseX = e.clientX;
+        const startMouseY = e.clientY;
+
+        const onMouseMove = (moveEvt) => {
+            const dx = (moveEvt.clientX - startMouseX) / vw;
+            const dy = (moveEvt.clientY - startMouseY) / vh;
+
+            let nextX = startRect.x;
+            let nextY = startRect.y;
+            let nextW = startRect.w;
+            let nextH = startRect.h;
+
+            // 根据拉伸方向更新宽高与位置
+            if (direction.includes('e')) {
+                nextW = Math.max(0.05, Math.min(1 - startRect.x, startRect.w + dx));
+            }
+            if (direction.includes('s')) {
+                nextH = Math.max(0.05, Math.min(1 - startRect.y, startRect.h + dy));
+            }
+            if (direction.includes('w')) {
+                const maxDx = startRect.w - 0.05;
+                const clampedDx = Math.max(-startRect.x, Math.min(maxDx, dx));
+                nextX = startRect.x + clampedDx;
+                nextW = startRect.w - clampedDx;
+            }
+            if (direction.includes('n')) {
+                const maxDy = startRect.h - 0.05;
+                const clampedDy = Math.max(-startRect.y, Math.min(maxDy, dy));
+                nextY = startRect.y + clampedDy;
+                nextH = startRect.h - clampedDy;
+            }
+
+            setFreeCropRect({
+                x: Math.max(0, Math.min(1 - nextW, nextX)),
+                y: Math.max(0, Math.min(1 - nextH, nextY)),
+                w: nextW,
+                h: nextH,
+            });
+        };
+
+        const onMouseUp = () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+    };
+
+    // 裁切框内部拖动平移
     const isDraggingCrop = useRef(false);
     const dragStartX = useRef(0);
     const startCropOffset = useRef(0);
@@ -475,6 +557,41 @@ export function VideoStage({
         e.preventDefault();
         e.stopPropagation();
 
+        if (cropMode === 'free') {
+            const vw = boxLayout.videoWidth;
+            const vh = boxLayout.videoHeight;
+            if (!vw || !vh) return;
+
+            const startX = freeCropRect.x;
+            const startY = freeCropRect.y;
+            const startMouseX = e.clientX;
+            const startMouseY = e.clientY;
+
+            const onMouseMove = (moveEvt) => {
+                const dx = (moveEvt.clientX - startMouseX) / vw;
+                const dy = (moveEvt.clientY - startMouseY) / vh;
+
+                const nextX = Math.max(0, Math.min(1 - freeCropRect.w, startX + dx));
+                const nextY = Math.max(0, Math.min(1 - freeCropRect.h, startY + dy));
+
+                setFreeCropRect(prev => ({
+                    ...prev,
+                    x: nextX,
+                    y: nextY,
+                }));
+            };
+
+            const onMouseUp = () => {
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
+            };
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            return;
+        }
+
+        // 固定比例模式下：原有左右平移
         isDraggingCrop.current = true;
         dragStartX.current = e.clientX;
         startCropOffset.current = cropOffset;
@@ -504,6 +621,18 @@ export function VideoStage({
         if (cropMode === 'full') return;
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.05 : 0.05;
+
+        if (cropMode === 'free') {
+            setFreeCropRect(prev => {
+                const newW = Math.max(0.08, Math.min(1.0, prev.w * (1 + delta)));
+                const newH = Math.max(0.08, Math.min(1.0, prev.h * (1 + delta)));
+                const newX = Math.max(0, Math.min(1 - newW, prev.x + (prev.w - newW) / 2));
+                const newY = Math.max(0, Math.min(1 - newH, prev.y + (prev.h - newH) / 2));
+                return { x: newX, y: newY, w: newW, h: newH };
+            });
+            return;
+        }
+
         setBoxScale(prev => Math.max(0.3, Math.min(1.0, prev + delta)));
     };
 
@@ -683,7 +812,7 @@ export function VideoStage({
                                     }}
                                 />
 
-                                {/* 裁切框：现代工业级取景框设计 */}
+                                {/* 裁切框：现代工业级取景框设计（支持边角自由缩放拖拉） */}
                                 <div
                                     className="absolute cursor-grab active:cursor-grabbing border border-white/80 shadow-[0_0_0_1px_rgba(0,0,0,0.6)]"
                                     style={{
@@ -720,7 +849,51 @@ export function VideoStage({
 
                                     {/* 比例指示微标 */}
                                     <div className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-black/70 border border-white/10 text-[10px] font-mono text-zinc-300 pointer-events-none backdrop-blur-md">
-                                        {cropMode}
+                                        {cropMode === 'free' ? '自由' : cropMode}
+                                    </div>
+
+                                    {/* 自由拖拽缩放手柄：四角 */}
+                                    <div
+                                        className="absolute -top-1.5 -left-1.5 w-4 h-4 cursor-nwse-resize z-20 group"
+                                        onMouseDown={(e) => handleResizeMouseDown('nw', e)}
+                                    />
+                                    <div
+                                        className="absolute -top-1.5 -right-1.5 w-4 h-4 cursor-nesw-resize z-20 group"
+                                        onMouseDown={(e) => handleResizeMouseDown('ne', e)}
+                                    />
+                                    <div
+                                        className="absolute -bottom-1.5 -left-1.5 w-4 h-4 cursor-nesw-resize z-20 group"
+                                        onMouseDown={(e) => handleResizeMouseDown('sw', e)}
+                                    />
+                                    <div
+                                        className="absolute -bottom-1.5 -right-1.5 w-4 h-4 cursor-nwse-resize z-20 group"
+                                        onMouseDown={(e) => handleResizeMouseDown('se', e)}
+                                    />
+
+                                    {/* 自由拖拽缩放手柄：四边 */}
+                                    <div
+                                        className="absolute -top-1.5 left-3 right-3 h-3 cursor-ns-resize z-10 flex items-center justify-center group"
+                                        onMouseDown={(e) => handleResizeMouseDown('n', e)}
+                                    >
+                                        <div className="w-6 h-0.5 rounded-full bg-white/40 group-hover:bg-white transition-colors" />
+                                    </div>
+                                    <div
+                                        className="absolute -bottom-1.5 left-3 right-3 h-3 cursor-ns-resize z-10 flex items-center justify-center group"
+                                        onMouseDown={(e) => handleResizeMouseDown('s', e)}
+                                    >
+                                        <div className="w-6 h-0.5 rounded-full bg-white/40 group-hover:bg-white transition-colors" />
+                                    </div>
+                                    <div
+                                        className="absolute -left-1.5 top-3 bottom-3 w-3 cursor-ew-resize z-10 flex items-center justify-center group"
+                                        onMouseDown={(e) => handleResizeMouseDown('w', e)}
+                                    >
+                                        <div className="h-6 w-0.5 rounded-full bg-white/40 group-hover:bg-white transition-colors" />
+                                    </div>
+                                    <div
+                                        className="absolute -right-1.5 top-3 bottom-3 w-3 cursor-ew-resize z-10 flex items-center justify-center group"
+                                        onMouseDown={(e) => handleResizeMouseDown('e', e)}
+                                    >
+                                        <div className="h-6 w-0.5 rounded-full bg-white/40 group-hover:bg-white transition-colors" />
                                     </div>
                                 </div>
                             </>
@@ -801,8 +974,16 @@ export function VideoStage({
                             {cropMode !== 'full' && (
                                 <button
                                     onClick={() => {
-                                        if (onCropOffsetChange) onCropOffsetChange(0);
-                                        setBoxScale(1.0);
+                                        if (cropMode === 'free') {
+                                            setFreeCropRect(prev => ({
+                                                ...prev,
+                                                x: Math.max(0, (1 - prev.w) / 2),
+                                                y: Math.max(0, (1 - prev.h) / 2),
+                                            }));
+                                        } else {
+                                            if (onCropOffsetChange) onCropOffsetChange(0);
+                                            setBoxScale(1.0);
+                                        }
                                     }}
                                     className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-white/[0.06] transition text-xs"
                                     title="裁切框恢复居中"
