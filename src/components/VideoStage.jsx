@@ -1,12 +1,12 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Video, Maximize2, RotateCcw, Crosshair } from 'lucide-react';
+import { Video, Play, Pause, RotateCcw, Crosshair, ChevronLeft, ChevronRight, Maximize2, Crop } from 'lucide-react';
 import mpegts from 'mpegts.js';
 
 export function VideoStage({
     videoSource,       // File 对象或本地路径字符串
     videoMeta,         // { name, path }
     onFileLoaded,      // 拖拽或选择新视频
-    portraitRatio = '9:16', // '9:16' | '3:4' | '1:1' | '4:5'
+    cropMode = 'full', // 'full' (全屏原画) | '9:16' | '3:4' | '1:1' | '4:5' | 'free' (自由框选)
     resolutionPreset = 'original', // 'original' | '1080p' | '720p'
     cropOffset = 0,    // -1 (最左) 到 1 (最右)
     onCropOffsetChange,
@@ -18,6 +18,7 @@ export function VideoStage({
     const videoRef = useRef(null);
     const containerRef = useRef(null);
     const mpegtsPlayerRef = useRef(null);
+    const progressBarRef = useRef(null);
 
     const [isDragOver, setIsDragOver] = useState(false);
     const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 });
@@ -25,6 +26,15 @@ export function VideoStage({
     const [duration, setDuration] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isShutterFlashing, setIsShutterFlashing] = useState(false);
+
+    // 自由选框的局部坐标比例 [x, y, width, height] (0~1)
+    const [freeCropRect, setFreeCropRect] = useState({ x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
+    const [isAdjustingFreeCrop, setIsAdjustingFreeCrop] = useState(false);
+
+    // 进度条拖拽中状态与悬浮提示
+    const [isScrubbing, setIsScrubbing] = useState(false);
+    const [scrubHoverTime, setScrubHoverTime] = useState(null);
+    const [scrubHoverPos, setScrubHoverPos] = useState(0);
 
     // 裁切框屏幕像素几何
     const [boxLayout, setBoxLayout] = useState({
@@ -39,22 +49,29 @@ export function VideoStage({
         maxOffsetX: 0,
     });
 
-    // 裁切框缩放比例 (1.0 为贴顶底高度)
+    // 裁切框缩放比例 (1.0 为贴满视频范围)
     const [boxScale, setBoxScale] = useState(1.0);
 
-    // 计算当前比例系数
+    // 计算当前比例系数 (宽 / 高)
     const getTargetAspectRatio = useCallback(() => {
-        if (!portraitRatio) return 9 / 16;
-        const [rw, rh] = portraitRatio.split(':').map(Number);
+        if (cropMode === 'full') {
+            if (videoDimensions.width && videoDimensions.height) {
+                return videoDimensions.width / videoDimensions.height;
+            }
+            return 16 / 9;
+        }
+        if (cropMode === 'free') {
+            return freeCropRect.w / freeCropRect.h;
+        }
+        const [rw, rh] = cropMode.split(':').map(Number);
         return (rw && rh) ? (rw / rh) : (9 / 16);
-    }, [portraitRatio]);
+    }, [cropMode, videoDimensions, freeCropRect]);
 
     // ===== 1. 视频加载与播放器挂载（TS 格式 mpegts.js / MP4 原生硬解） =====
     useEffect(() => {
         const video = videoRef.current;
         if (!video || !videoSource) return;
 
-        // 清理旧的 mpegts player
         if (mpegtsPlayerRef.current) {
             mpegtsPlayerRef.current.destroy();
             mpegtsPlayerRef.current = null;
@@ -72,7 +89,6 @@ export function VideoStage({
         }
 
         if (isTsFormat && mpegts.isSupported()) {
-            // 使用 mpegts.js 播放本地 TS 流
             const player = mpegts.createPlayer({
                 type: 'mse',
                 isLive: false,
@@ -122,8 +138,9 @@ export function VideoStage({
         const container = containerRef.current;
         if (!container || !vw || !vh) return;
 
+        // 底部留出 56px 给控制栏与进度条空间
         const cWidth = container.clientWidth;
-        const cHeight = container.clientHeight;
+        const cHeight = Math.max(100, container.clientHeight - 60);
         if (!cWidth || !cHeight) return;
 
         const vRatio = vw / vh;
@@ -141,18 +158,51 @@ export function VideoStage({
         const vLeft = (cWidth - dWidth) / 2;
         const vTop = (cHeight - dHeight) / 2;
 
+        if (cropMode === 'full') {
+            setBoxLayout({
+                videoLeft: vLeft,
+                videoTop: vTop,
+                videoWidth: dWidth,
+                videoHeight: dHeight,
+                boxWidth: dWidth,
+                boxHeight: dHeight,
+                boxX: vLeft,
+                boxY: vTop,
+                maxOffsetX: 0,
+            });
+            return;
+        }
+
+        if (cropMode === 'free') {
+            const bX = vLeft + freeCropRect.x * dWidth;
+            const bY = vTop + freeCropRect.y * dHeight;
+            const bW = freeCropRect.w * dWidth;
+            const bH = freeCropRect.h * dHeight;
+            setBoxLayout({
+                videoLeft: vLeft,
+                videoTop: vTop,
+                videoWidth: dWidth,
+                videoHeight: dHeight,
+                boxWidth: bW,
+                boxHeight: bH,
+                boxX: bX,
+                boxY: bY,
+                maxOffsetX: dWidth - bW,
+            });
+            return;
+        }
+
+        // 固定比例模式 (9:16, 3:4, 1:1, 4:5)
         const aspect = getTargetAspectRatio();
-        // 框高度受 boxScale 调节，最高为当前渲染视频的高
-        const bHeight = dHeight * boxScale;
+        let bHeight = dHeight * boxScale;
         let bWidth = bHeight * aspect;
 
-        // 如果超出视频宽度，等比缩小
         if (bWidth > dWidth) {
             bWidth = dWidth;
+            bHeight = bWidth / aspect;
         }
 
         const maxOffsetX = Math.max(0, (dWidth - bWidth) / 2);
-        // cropOffset 在 -1 到 1 之间
         const currentOffsetX = cropOffset * maxOffsetX;
         const bX = vLeft + (dWidth - bWidth) / 2 + currentOffsetX;
         const bY = vTop + (dHeight - bHeight) / 2;
@@ -168,16 +218,14 @@ export function VideoStage({
             boxY: bY,
             maxOffsetX,
         });
-    }, [videoDimensions, boxScale, cropOffset, getTargetAspectRatio]);
+    }, [videoDimensions, boxScale, cropOffset, cropMode, freeCropRect, getTargetAspectRatio]);
 
     // 监听容器大小变更
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
-        const observer = new ResizeObserver(() => {
-            updateLayout();
-        });
+        const observer = new ResizeObserver(() => updateLayout());
         observer.observe(container);
         updateLayout();
 
@@ -190,7 +238,6 @@ export function VideoStage({
         direction: 1, // 1: 前进, -1: 后退
         startTime: 0,
         rafId: null,
-        isClick: true,
     });
 
     const stepEngine = useCallback(() => {
@@ -203,29 +250,21 @@ export function VideoStage({
         const now = performance.now();
         const elapsed = now - state.startTime;
 
-        // 前 180ms 内认为是单击，只步进 1 帧后等待长按判断
         if (elapsed < 180) {
             state.rafId = requestAnimationFrame(stepEngine);
             return;
         }
 
-        // 超过 180ms，进入长按连续平滑递增提速模式
-        state.isClick = false;
-
-        // 速度递增曲线：
-        // 200ms ~ 800ms: 1x 速度逐帧放映 (~1.0s/秒)
-        // 800ms ~ 2000ms: 2x ~ 4x 速度
-        // > 2000ms: 8x ~ 16x 速度
+        // 长按平滑递增提速
         let rate = 1.0;
         if (elapsed > 2000) {
-            rate = 8.0 + Math.min(8.0, (elapsed - 2000) / 500); // 最高 16x
+            rate = 8.0 + Math.min(8.0, (elapsed - 2000) / 400); // 8x ~ 16x
         } else if (elapsed > 800) {
             rate = 2.0 + ((elapsed - 800) / 1200) * 4.0; // 2x ~ 6x
         } else {
             rate = 1.0;
         }
 
-        // 如果浏览器正在激烈 seek 中，稍微让渡微小节拍以防卡死
         if (!video.seeking) {
             const frameDelta = (1 / 30) * rate;
             const newTime = Math.max(0, Math.min(video.duration || 999999, video.currentTime + frameDelta * state.direction));
@@ -239,13 +278,11 @@ export function VideoStage({
         const video = videoRef.current;
         if (!video) return;
 
-        // 如果正在播放，先暂停以进行逐帧精选
         if (!video.paused) {
             video.pause();
             setIsPlaying(false);
         }
 
-        // 立即执行一次精准单帧步进 (以 1/30 秒为基准)
         const singleFrameDelta = 1 / 30;
         video.currentTime = Math.max(0, Math.min(video.duration || 999999, video.currentTime + singleFrameDelta * direction));
 
@@ -253,7 +290,6 @@ export function VideoStage({
         state.active = true;
         state.direction = direction;
         state.startTime = performance.now();
-        state.isClick = true;
 
         if (state.rafId) cancelAnimationFrame(state.rafId);
         state.rafId = requestAnimationFrame(stepEngine);
@@ -270,14 +306,12 @@ export function VideoStage({
 
     // 监听鼠标侧键（button 3 和 4）
     const handlePointerDown = (e) => {
-        // 侧键后退 (button 3): 快退
         if (e.button === 3) {
             e.preventDefault();
             e.stopPropagation();
             startStepping(-1);
             return;
         }
-        // 侧键前进 (button 4): 快进
         if (e.button === 4) {
             e.preventDefault();
             e.stopPropagation();
@@ -294,7 +328,7 @@ export function VideoStage({
         }
     };
 
-    // 全局防侧键丢失与键盘左右方向键支持
+    // 全局快捷键支持
     useEffect(() => {
         const onGlobalMouseUp = (e) => {
             if (e.button === 3 || e.button === 4) {
@@ -343,7 +377,7 @@ export function VideoStage({
         const video = videoRef.current;
         if (!video || !video.videoWidth || !video.videoHeight) return;
 
-        // 快门视觉反馈（80ms 高亮白闪）
+        // 80ms 白闪快门反馈
         setIsShutterFlashing(true);
         setTimeout(() => setIsShutterFlashing(false), 90);
 
@@ -353,39 +387,60 @@ export function VideoStage({
         const dh = boxLayout.videoHeight;
         if (!dw || !dh) return;
 
-        // 将屏幕上的裁切框矩形映射回视频原始像素坐标
-        const scaleX = vw / dw;
-        const scaleY = vh / dh;
+        let sourceX = 0;
+        let sourceY = 0;
+        let sourceW = vw;
+        let sourceH = vh;
 
-        const cropScreenX = boxLayout.boxX - boxLayout.videoLeft;
-        const cropScreenY = boxLayout.boxY - boxLayout.videoTop;
+        // 全屏模式下：直接一比一截取完整视频画面
+        if (cropMode === 'full') {
+            sourceX = 0;
+            sourceY = 0;
+            sourceW = vw;
+            sourceH = vh;
+        } else {
+            // 裁剪模式下：精确映射屏幕框到原始物理像素
+            const scaleX = vw / dw;
+            const scaleY = vh / dh;
 
-        const sourceX = Math.max(0, Math.round(cropScreenX * scaleX));
-        const sourceY = Math.max(0, Math.round(cropScreenY * scaleY));
-        const sourceW = Math.min(vw - sourceX, Math.round(boxLayout.boxWidth * scaleX));
-        const sourceH = Math.min(vh - sourceY, Math.round(boxLayout.boxHeight * scaleY));
+            const cropScreenX = boxLayout.boxX - boxLayout.videoLeft;
+            const cropScreenY = boxLayout.boxY - boxLayout.videoTop;
 
-        // 根据 resolutionPreset 确定最终输出画布尺寸
+            sourceX = Math.max(0, Math.round(cropScreenX * scaleX));
+            sourceY = Math.max(0, Math.round(cropScreenY * scaleY));
+            sourceW = Math.min(vw - sourceX, Math.round(boxLayout.boxWidth * scaleX));
+            sourceH = Math.min(vh - sourceY, Math.round(boxLayout.boxHeight * scaleY));
+        }
+
+        // 根据 resolutionPreset 确定输出画布尺寸
         let outW = sourceW;
         let outH = sourceH;
 
         if (resolutionPreset === '1080p') {
-            const aspect = getTargetAspectRatio();
-            outH = 1920;
-            outW = Math.round(outH * aspect);
+            const ratio = sourceW / sourceH;
+            if (ratio < 1) { // 竖图
+                outH = 1920;
+                outW = Math.round(outH * ratio);
+            } else { // 横图
+                outW = 1920;
+                outH = Math.round(outW / ratio);
+            }
         } else if (resolutionPreset === '720p') {
-            const aspect = getTargetAspectRatio();
-            outH = 1280;
-            outW = Math.round(outH * aspect);
+            const ratio = sourceW / sourceH;
+            if (ratio < 1) {
+                outH = 1280;
+                outW = Math.round(outH * ratio);
+            } else {
+                outW = 1280;
+                outH = Math.round(outW / ratio);
+            }
         }
 
-        // 离线 Canvas 毫秒级直裁
         const offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = outW;
         offscreenCanvas.height = outH;
         const ctx = offscreenCanvas.getContext('2d', { alpha: false });
 
-        // 高质量抗锯齿绘制
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(
@@ -394,7 +449,6 @@ export function VideoStage({
             0, 0, outW, outH
         );
 
-        // 导出高质量图片 Base64
         const base64 = offscreenCanvas.toDataURL('image/jpeg', 0.95);
 
         if (onShutterCapture) {
@@ -405,22 +459,21 @@ export function VideoStage({
                 timeSec: video.currentTime,
             });
         }
-    }, [boxLayout, resolutionPreset, getTargetAspectRatio, onShutterCapture]);
+    }, [boxLayout, cropMode, resolutionPreset, onShutterCapture]);
 
     const handleContextMenu = (e) => {
-        // 彻底拦截系统默认菜单，替换为快门截取！
         e.preventDefault();
         e.stopPropagation();
         triggerShutter();
     };
 
-    // ===== 5. 裁切框拖拽与滚轮微调 =====
+    // ===== 5. 裁切框鼠标拖动与滚轮调整 =====
     const isDraggingCrop = useRef(false);
     const dragStartX = useRef(0);
     const startCropOffset = useRef(0);
 
     const handleCropMouseDown = (e) => {
-        if (e.button !== 0) return; // 仅左键拖动裁切框
+        if (e.button !== 0 || cropMode === 'full') return;
         e.preventDefault();
         e.stopPropagation();
 
@@ -434,7 +487,6 @@ export function VideoStage({
             const maxOffset = boxLayout.maxOffsetX;
             if (maxOffset <= 0) return;
 
-            // 转化为 -1 到 1 的比率
             const offsetRatioDelta = deltaX / maxOffset;
             const nextOffset = Math.max(-1, Math.min(1, startCropOffset.current + offsetRatioDelta));
             if (onCropOffsetChange) onCropOffsetChange(nextOffset);
@@ -451,13 +503,57 @@ export function VideoStage({
     };
 
     const handleWheel = (e) => {
-        // 滚轮缩放裁切框
+        if (cropMode === 'full') return;
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.05 : 0.05;
-        setBoxScale(prev => Math.max(0.4, Math.min(1.0, prev + delta)));
+        setBoxScale(prev => Math.max(0.3, Math.min(1.0, prev + delta)));
     };
 
-    // 播放/暂停切换
+    // ===== 6. 交互式视频进度条点击与拖拽跳转 =====
+    const handleProgressBarClickOrDrag = (e) => {
+        const bar = progressBarRef.current;
+        const video = videoRef.current;
+        if (!bar || !video || !duration) return;
+
+        const rect = bar.getBoundingClientRect();
+        const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        const percentage = clickX / rect.width;
+        const targetTime = percentage * duration;
+
+        video.currentTime = targetTime;
+        setCurrentTime(targetTime);
+    };
+
+    const handleProgressBarMouseDown = (e) => {
+        if (e.button !== 0) return;
+        setIsScrubbing(true);
+        handleProgressBarClickOrDrag(e);
+
+        const onMouseMove = (moveEvt) => {
+            handleProgressBarClickOrDrag(moveEvt);
+        };
+
+        const onMouseUp = () => {
+            setIsScrubbing(false);
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+    };
+
+    const handleProgressBarMouseMove = (e) => {
+        const bar = progressBarRef.current;
+        if (!bar || !duration) return;
+        const rect = bar.getBoundingClientRect();
+        const hoverX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        const hoverPercent = hoverX / rect.width;
+        setScrubHoverTime(hoverPercent * duration);
+        setScrubHoverPos(hoverX);
+    };
+
+    // 播放/暂停
     const togglePlay = () => {
         const video = videoRef.current;
         if (!video) return;
@@ -470,7 +566,7 @@ export function VideoStage({
         }
     };
 
-    // 文件拖拽加载
+    // 文件拖拽加载（兼容 HTML5 drop）
     const handleDragOver = (e) => {
         e.preventDefault();
         setIsDragOver(true);
@@ -483,17 +579,24 @@ export function VideoStage({
     const handleDrop = (e) => {
         e.preventDefault();
         setIsDragOver(false);
-        const files = e.dataTransfer.files;
+        const files = e.dataTransfer?.files;
         if (files && files.length > 0) {
             const file = files[0];
             if (onFileLoaded) onFileLoaded(file);
         }
     };
 
+    const formatSeconds = (sec) => {
+        if (!sec || isNaN(sec)) return "00:00";
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+
     return (
         <div
             ref={containerRef}
-            className={`relative w-full h-full bg-[#0a0c10] flex items-center justify-center select-none overflow-hidden ${
+            className={`relative w-full h-full bg-[#0a0c10] flex flex-col items-center justify-between select-none overflow-hidden ${
                 isDragOver ? 'ring-2 ring-emerald-500 bg-[#0f141c]' : ''
             }`}
             onPointerDown={handlePointerDown}
@@ -504,9 +607,9 @@ export function VideoStage({
             onDrop={handleDrop}
             onWheel={handleWheel}
         >
-            {/* 快门击发白闪 */}
+            {/* 快门击发白闪遮罩 */}
             {isShutterFlashing && (
-                <div className="absolute inset-0 bg-white/70 z-50 pointer-events-none transition-opacity duration-75" />
+                <div className="absolute inset-0 bg-white/75 z-50 pointer-events-none transition-opacity duration-75" />
             )}
 
             {/* 隐藏的真实 video 元素 */}
@@ -524,155 +627,229 @@ export function VideoStage({
                 onEnded={() => setIsPlaying(false)}
             />
 
-            {/* 当没有加载视频时显示拖放提示 */}
+            {/* 当没有加载视频时显示拖放引导 */}
             {!videoSource && (
-                <div className="flex flex-col items-center justify-center text-slate-500 gap-3 pointer-events-none">
-                    <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl">
-                        <Video className="w-12 h-12 text-slate-400 stroke-1" />
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-4 pointer-events-none">
+                    <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-2xl">
+                        <Video className="w-14 h-14 text-slate-400 stroke-1" />
                     </div>
-                    <p className="text-sm font-medium text-slate-400">将视频拖拽到此处，或点击上方“打开视频”</p>
+                    <div className="text-center">
+                        <p className="text-base font-medium text-slate-200">直接将视频拖拽进窗口即可播放</p>
+                        <p className="text-xs text-slate-400 mt-1">支持 MP4、TS、MKV、WebM、MOV 等全格式</p>
+                    </div>
                     <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700">MP4</span>
-                        <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700">TS</span>
-                        <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700">MKV</span>
-                        <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700">WebM</span>
+                        <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">油管/推特/IG 视频</span>
+                        <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">TS 流媒体片段</span>
+                        <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">4K / 1080P 高清</span>
                     </div>
                 </div>
             )}
 
-            {/* 视频显示与常驻裁切框层 */}
+            {/* 视频显示与构图裁切层 */}
             {videoSource && boxLayout.videoWidth > 0 && (
-                <div
-                    className="absolute"
-                    style={{
-                        left: `${boxLayout.videoLeft}px`,
-                        top: `${boxLayout.videoTop}px`,
-                        width: `${boxLayout.videoWidth}px`,
-                        height: `${boxLayout.videoHeight}px`,
-                    }}
-                >
-                    {/* 视频真实画面 */}
-                    <canvas
-                        ref={(canvas) => {
-                            if (!canvas || !videoRef.current) return;
-                            canvas.width = boxLayout.videoWidth;
-                            canvas.height = boxLayout.videoHeight;
-                            const ctx = canvas.getContext('2d');
-                            if (ctx && videoRef.current) {
-                                ctx.drawImage(videoRef.current, 0, 0, boxLayout.videoWidth, boxLayout.videoHeight);
-                            }
-                        }}
-                        className="w-full h-full block"
-                    />
-
-                    {/* 暗化非裁剪区域的遮罩层 */}
-                    {/* 左遮罩 */}
+                <div className="flex-1 w-full relative overflow-hidden flex items-center justify-center">
                     <div
-                        className="absolute top-0 bottom-0 left-0 bg-black/65 backdrop-blur-[1px] pointer-events-none transition-all duration-75"
+                        className="absolute"
                         style={{
-                            width: `${Math.max(0, boxLayout.boxX - boxLayout.videoLeft)}px`,
+                            left: `${boxLayout.videoLeft}px`,
+                            top: `${boxLayout.videoTop}px`,
+                            width: `${boxLayout.videoWidth}px`,
+                            height: `${boxLayout.videoHeight}px`,
                         }}
-                    />
-                    {/* 右遮罩 */}
-                    <div
-                        className="absolute top-0 bottom-0 right-0 bg-black/65 backdrop-blur-[1px] pointer-events-none transition-all duration-75"
-                        style={{
-                            width: `${Math.max(0, boxLayout.videoWidth - (boxLayout.boxX - boxLayout.videoLeft + boxLayout.boxWidth))}px`,
-                        }}
-                    />
-                    {/* 上遮罩 */}
-                    <div
-                        className="absolute left-0 right-0 top-0 bg-black/65 backdrop-blur-[1px] pointer-events-none"
-                        style={{
-                            height: `${Math.max(0, boxLayout.boxY - boxLayout.videoTop)}px`,
-                            left: `${boxLayout.boxX - boxLayout.videoLeft}px`,
-                            width: `${boxLayout.boxWidth}px`,
-                        }}
-                    />
-                    {/* 下遮罩 */}
-                    <div
-                        className="absolute left-0 right-0 bottom-0 bg-black/65 backdrop-blur-[1px] pointer-events-none"
-                        style={{
-                            height: `${Math.max(0, boxLayout.videoHeight - (boxLayout.boxY - boxLayout.videoTop + boxLayout.boxHeight))}px`,
-                            left: `${boxLayout.boxX - boxLayout.videoLeft}px`,
-                            width: `${boxLayout.boxWidth}px`,
-                        }}
-                    />
-
-                    {/* 可拖拽裁切框 */}
-                    <div
-                        className="absolute cursor-grab active:cursor-grabbing border-2 border-emerald-400/90 shadow-[0_0_15px_rgba(52,211,153,0.3)] hover:border-emerald-300 transition-colors"
-                        style={{
-                            left: `${boxLayout.boxX - boxLayout.videoLeft}px`,
-                            top: `${boxLayout.boxY - boxLayout.videoTop}px`,
-                            width: `${boxLayout.boxWidth}px`,
-                            height: `${boxLayout.boxHeight}px`,
-                        }}
-                        onMouseDown={handleCropMouseDown}
                     >
-                        {/* 构图三等分辅助线 */}
-                        <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-25">
-                            <div className="border-r border-b border-white" />
-                            <div className="border-r border-b border-white" />
-                            <div className="border-b border-white" />
-                            <div className="border-r border-b border-white" />
-                            <div className="border-r border-b border-white" />
-                            <div className="border-b border-white" />
-                            <div className="border-r border-white" />
-                            <div className="border-r border-white" />
-                            <div />
-                        </div>
+                        {/* 视频真实画面 Canvas */}
+                        <canvas
+                            ref={(canvas) => {
+                                if (!canvas || !videoRef.current) return;
+                                canvas.width = boxLayout.videoWidth;
+                                canvas.height = boxLayout.videoHeight;
+                                const ctx = canvas.getContext('2d');
+                                if (ctx && videoRef.current) {
+                                    ctx.drawImage(videoRef.current, 0, 0, boxLayout.videoWidth, boxLayout.videoHeight);
+                                }
+                            }}
+                            className="w-full h-full block"
+                        />
 
-                        {/* 中心准心 */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
-                            <Crosshair className="w-5 h-5 text-emerald-400" />
-                        </div>
+                        {/* 如果是裁剪模式（9:16/3:4/1:1/4:5/free），显示半透明暗色遮罩与构图框 */}
+                        {cropMode !== 'full' && (
+                            <>
+                                {/* 左遮罩 */}
+                                <div
+                                    className="absolute top-0 bottom-0 left-0 bg-black/70 backdrop-blur-[1px] pointer-events-none transition-all duration-75"
+                                    style={{ width: `${Math.max(0, boxLayout.boxX - boxLayout.videoLeft)}px` }}
+                                />
+                                {/* 右遮罩 */}
+                                <div
+                                    className="absolute top-0 bottom-0 right-0 bg-black/70 backdrop-blur-[1px] pointer-events-none transition-all duration-75"
+                                    style={{ width: `${Math.max(0, boxLayout.videoWidth - (boxLayout.boxX - boxLayout.videoLeft + boxLayout.boxWidth))}px` }}
+                                />
+                                {/* 上遮罩 */}
+                                <div
+                                    className="absolute left-0 right-0 top-0 bg-black/70 backdrop-blur-[1px] pointer-events-none"
+                                    style={{
+                                        height: `${Math.max(0, boxLayout.boxY - boxLayout.videoTop)}px`,
+                                        left: `${boxLayout.boxX - boxLayout.videoLeft}px`,
+                                        width: `${boxLayout.boxWidth}px`,
+                                    }}
+                                />
+                                {/* 下遮罩 */}
+                                <div
+                                    className="absolute left-0 right-0 bottom-0 bg-black/70 backdrop-blur-[1px] pointer-events-none"
+                                    style={{
+                                        height: `${Math.max(0, boxLayout.videoHeight - (boxLayout.boxY - boxLayout.videoTop + boxLayout.boxHeight))}px`,
+                                        left: `${boxLayout.boxX - boxLayout.videoLeft}px`,
+                                        width: `${boxLayout.boxWidth}px`,
+                                    }}
+                                />
 
-                        {/* 四角精致指示标 */}
-                        <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-emerald-400" />
-                        <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-emerald-400" />
-                        <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-emerald-400" />
-                        <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-emerald-400" />
+                                {/* 裁切框 */}
+                                <div
+                                    className="absolute cursor-grab active:cursor-grabbing border-2 border-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.35)] hover:border-emerald-300 transition-colors"
+                                    style={{
+                                        left: `${boxLayout.boxX - boxLayout.videoLeft}px`,
+                                        top: `${boxLayout.boxY - boxLayout.videoTop}px`,
+                                        width: `${boxLayout.boxWidth}px`,
+                                        height: `${boxLayout.boxHeight}px`,
+                                    }}
+                                    onMouseDown={handleCropMouseDown}
+                                >
+                                    {/* 三等分辅助线 */}
+                                    <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-25">
+                                        <div className="border-r border-b border-white" />
+                                        <div className="border-r border-b border-white" />
+                                        <div className="border-b border-white" />
+                                        <div className="border-r border-b border-white" />
+                                        <div className="border-r border-b border-white" />
+                                        <div className="border-b border-white" />
+                                        <div className="border-r border-white" />
+                                        <div className="border-r border-white" />
+                                        <div />
+                                    </div>
 
-                        {/* 比例与分辨率提示小气泡 */}
-                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/75 border border-emerald-500/40 text-[11px] font-mono text-emerald-300 pointer-events-none backdrop-blur-sm">
-                            {portraitRatio}
-                        </div>
+                                    {/* 准心 */}
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                                        <Crosshair className="w-5 h-5 text-emerald-400" />
+                                    </div>
+
+                                    {/* 比例提示标 */}
+                                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 border border-emerald-500/40 text-[11px] font-mono text-emerald-300 pointer-events-none backdrop-blur-sm">
+                                        {cropMode}
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* 底部悬浮操控反馈胶囊 */}
+            {/* 专业级视频进度条与播放控制底栏 */}
             {videoSource && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 rounded-full bg-slate-900/85 backdrop-blur-md border border-slate-700/80 shadow-2xl text-xs text-slate-300 z-30">
-                    <button
-                        onClick={togglePlay}
-                        className="px-2.5 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-medium transition"
+                <div className="w-full bg-[#11141c]/95 border-t border-slate-800 px-4 py-2.5 flex flex-col gap-2 z-30 shrink-0 select-none">
+                    {/* 交互式进度条 */}
+                    <div
+                        ref={progressBarRef}
+                        onMouseDown={handleProgressBarMouseDown}
+                        onMouseMove={handleProgressBarMouseMove}
+                        onMouseLeave={() => setScrubHoverTime(null)}
+                        className="relative h-2 hover:h-3.5 bg-slate-800 rounded-full cursor-pointer transition-all flex items-center group"
                     >
-                        {isPlaying ? '暂停' : '播放'}
-                    </button>
-                    <span className="font-mono text-slate-400">
-                        {Math.floor(currentTime / 60)}:{(Math.floor(currentTime % 60)).toString().padStart(2, '0')} / {Math.floor(duration / 60)}:{(Math.floor(duration % 60)).toString().padStart(2, '0')}
-                    </span>
-                    <div className="h-3 w-px bg-slate-700" />
-                    <button
-                        onClick={() => {
-                            if (onCropOffsetChange) onCropOffsetChange(0);
-                            setBoxScale(1.0);
-                        }}
-                        className="flex items-center gap-1 hover:text-white transition"
-                        title="居中裁切框"
-                    >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>居中</span>
-                    </button>
-                    <div className="h-3 w-px bg-slate-700" />
-                    <button
-                        onClick={triggerShutter}
-                        className="flex items-center gap-1 px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow transition"
-                    >
-                        快门 (右键)
-                    </button>
+                        {/* 播放进度填色 */}
+                        <div
+                            className="h-full bg-emerald-500 rounded-full relative"
+                            style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                        >
+                            {/* 进度滑块圆点 */}
+                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow border-2 border-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+
+                        {/* 悬浮时间预览气泡 */}
+                        {scrubHoverTime !== null && (
+                            <div
+                                className="absolute -top-7 px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono text-slate-200 pointer-events-none -translate-x-1/2 shadow-lg"
+                                style={{ left: `${scrubHoverPos}px` }}
+                            >
+                                {formatSeconds(scrubHoverTime)}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 控制按钮与时间指示 */}
+                    <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                            {/* 播放/暂停按钮 */}
+                            <button
+                                onClick={togglePlay}
+                                className="p-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition shadow"
+                                title="播放 / 暂停 (空格键)"
+                            >
+                                {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                            </button>
+
+                            {/* 单帧后退/前进 */}
+                            <button
+                                onClick={() => startStepping(-1)}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                                title="单帧后退 (侧键后退 / 左方向键)"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => startStepping(1)}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                                title="单帧前进 (侧键前进 / 右方向键)"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+
+                            {/* 时间戳与帧数 */}
+                            <div className="flex items-center gap-1.5 font-mono text-slate-300 ml-2">
+                                <span className="text-white font-semibold">{formatSeconds(currentTime)}</span>
+                                <span className="text-slate-600">/</span>
+                                <span className="text-slate-400">{formatSeconds(duration)}</span>
+                            </div>
+                        </div>
+
+                        {/* 中部模式提示 */}
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                            {cropMode === 'full' ? (
+                                <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                    <Maximize2 className="w-3.5 h-3.5" />
+                                    <span>全屏原比例截取</span>
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1 text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                    <Crop className="w-3.5 h-3.5" />
+                                    <span>{cropMode} 构图裁切中</span>
+                                </span>
+                            )}
+                        </div>
+
+                        {/* 右侧快门击发与重置 */}
+                        <div className="flex items-center gap-2">
+                            {cropMode !== 'full' && (
+                                <button
+                                    onClick={() => {
+                                        if (onCropOffsetChange) onCropOffsetChange(0);
+                                        setBoxScale(1.0);
+                                    }}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                                    title="恢复居中"
+                                >
+                                    <RotateCcw className="w-3 h-3" />
+                                    <span>居中</span>
+                                </button>
+                            )}
+
+                            <button
+                                onClick={triggerShutter}
+                                className="flex items-center gap-1 px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-md transition active:scale-95"
+                                title="截取当前画面 (鼠标右键)"
+                            >
+                                <span>快门 (右键)</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

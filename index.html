@@ -5,18 +5,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>快门</title>
-    <!-- 强行在一瞬间接管系统的原生拖拽拦截，彻底消除React冷加载三秒空窗期的无法拖入bug -->
-    <script>
-        window.addEventListener('dragenter', (e) => e.preventDefault(), { passive: false });
-        window.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            if (e.dataTransfer) {
-                e.dataTransfer.effectAllowed = 'all';
-                e.dataTransfer.dropEffect = 'copy';
-            }
-        }, { passive: false });
-        window.addEventListener('dragleave', (e) => e.preventDefault(), { passive: false });
-        window.addEventListener('drop', (e) => e.preventDefault(), { passive: false });    </script>
 </head>
 
 <body class="bg-background text-foreground overflow-hidden">

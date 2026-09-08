@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "verify": "vite build",
     "clean": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"if (Test-Path dist) { Remove-Item dist -Recurse -Force }; if (Test-Path release) { Remove-Item release -Recurse -Force }\"",
-    "build": "npm run verify && npx tauri build --no-bundle && powershell -NoProfile -ExecutionPolicy Bypass -Command \"$outDir = 'release/快门-免安装绿色版'; if (!(Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }; Copy-Item 'src-tauri/target/release/snap.exe' (Join-Path $outDir '快门.exe') -Force; Copy-Item 'src-tauri/target/release/WebView2Loader.dll' (Join-Path $outDir 'WebView2Loader.dll') -Force; Write-Host '绿色免安装版已输出至 release/快门-免安装绿色版/'\""
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Get-Process -Name 'snap', '快门', 'msedgewebview2' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue\" && npm run verify && npx tauri build --no-bundle && powershell -NoProfile -ExecutionPolicy Bypass -Command \"$outDir = 'release/快门-免安装绿色版'; if (!(Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }; Copy-Item 'src-tauri/target/release/snap.exe' (Join-Path $outDir '快门.exe') -Force; Copy-Item 'src-tauri/target/release/WebView2Loader.dll' (Join-Path $outDir 'WebView2Loader.dll') -Force; Write-Host '绿色免安装版已输出至 release/快门-免安装绿色版/'\""
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",

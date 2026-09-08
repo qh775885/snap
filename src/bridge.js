@@ -4,7 +4,6 @@ let tauriInvoke = null;
 let tauriConvertFileSrc = null;
 
 try {
-    // 动态或静态尝试引入 Tauri 2.0 core
     if (window.__TAURI_INTERNALS__ || window.__TAURI__) {
         isTauriEnv = true;
     }
@@ -106,18 +105,38 @@ export async function checkMedia(filePath) {
 
 export function toAssetUrl(filePath) {
     if (!filePath) return '';
-    // 如果已经是 http/blob/data，直接使用
     if (filePath.startsWith('http://') || filePath.startsWith('https://') || filePath.startsWith('blob:') || filePath.startsWith('data:')) {
         return filePath;
     }
     if (tauriConvertFileSrc) {
         return tauriConvertFileSrc(filePath);
     }
-    // Tauri asset 协议标准转换
     try {
         const encoded = encodeURIComponent(filePath.replace(/\\/g, '/')).replace(/%2F/g, '/');
         return `http://asset.localhost/${encoded}`;
     } catch {
         return filePath;
     }
+}
+
+// Tauri 2.0 原生窗口文件拖拽监听（彻底解决 HTML5 drop 在桌面端无法拿到路径的问题）
+export async function setupNativeFileDrop(onDropFilePaths) {
+    try {
+        const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+        const webview = getCurrentWebviewWindow();
+        if (webview && webview.onDragDropEvent) {
+            return await webview.onDragDropEvent((event) => {
+                const payload = event.payload;
+                if (payload && payload.type === 'drop') {
+                    const paths = payload.paths;
+                    if (paths && paths.length > 0) {
+                        onDropFilePaths(paths);
+                    }
+                }
+            });
+        }
+    } catch (e) {
+        console.warn('Tauri 拖拽原生监听未就绪:', e);
+    }
+    return null;
 }

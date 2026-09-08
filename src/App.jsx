@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Camera, FolderOpen, Video, Crop, Layers, HelpCircle } from 'lucide-react';
+import { Camera, FolderOpen, Video, Maximize2, Crop, Sparkles } from 'lucide-react';
 import { VideoStage } from './components/VideoStage';
 import { Gallery } from './components/Gallery';
-import { selectFolder, selectVideoFile, saveSnapshot, deleteSnapshot, toAssetUrl } from './bridge';
+import { selectFolder, selectVideoFile, saveSnapshot, deleteSnapshot, toAssetUrl, setupNativeFileDrop } from './bridge';
 
 export function App() {
     // 当前视频源
     const [videoSource, setVideoSource] = useState(null);
     const [videoMeta, setVideoMeta] = useState({ name: '', width: 0, height: 0, duration: 0 });
 
-    // 构图比例与输出分辨率
-    const [portraitRatio, setPortraitRatio] = useState('9:16');
+    // 构图模式：默认 'full' (截取全屏原图)，支持 '9:16' | '3:4' | '1:1' | '4:5'
+    const [cropMode, setCropMode] = useState('full');
     const [resolutionPreset, setResolutionPreset] = useState('original');
     const [cropOffset, setCropOffset] = useState(0);
 
@@ -20,32 +20,9 @@ export function App() {
     });
     const [snapshots, setSnapshots] = useState([]);
 
-    // 默认输出目录初始化（若本地未配置，提示选择或保存在当前用户目录）
-    const handleSelectOutputDir = async () => {
-        try {
-            const chosen = await selectFolder(outputDir);
-            if (chosen) {
-                setOutputDir(chosen);
-                localStorage.setItem('snap_output_dir', chosen);
-            }
-        } catch (err) {
-            console.error('选择目录失败:', err);
-        }
-    };
-
-    // 选择打开视频文件
-    const handleOpenVideo = async () => {
-        try {
-            const filePath = await selectVideoFile();
-            if (filePath) {
-                loadVideoFromPath(filePath);
-            }
-        } catch (err) {
-            console.error('选择文件失败:', err);
-        }
-    };
-
-    const loadVideoFromPath = (filePath) => {
+    // 路径载入视频核心逻辑
+    const loadVideoFromPath = useCallback((filePath) => {
+        if (!filePath) return;
         const fileName = filePath.split(/[\\/]/).pop() || '本地视频';
         setVideoSource(toAssetUrl(filePath));
         setVideoMeta(prev => ({ ...prev, name: fileName, path: filePath }));
@@ -60,18 +37,65 @@ export function App() {
                 localStorage.setItem('snap_output_dir', defaultOut);
             }
         }
+    }, [outputDir]);
+
+    // 注册 Tauri 原生桌面文件拖拽监听（100% 稳定响应外部文件拖入）
+    useEffect(() => {
+        let unlisten = null;
+        (async () => {
+            unlisten = await setupNativeFileDrop((paths) => {
+                if (paths && paths.length > 0) {
+                    loadVideoFromPath(paths[0]);
+                }
+            });
+        })();
+
+        return () => {
+            if (unlisten && typeof unlisten === 'function') {
+                unlisten();
+            }
+        };
+    }, [loadVideoFromPath]);
+
+    // 选择保存目录
+    const handleSelectOutputDir = async () => {
+        try {
+            const chosen = await selectFolder(outputDir);
+            if (chosen) {
+                setOutputDir(chosen);
+                localStorage.setItem('snap_output_dir', chosen);
+            }
+        } catch (err) {
+            console.error('选择目录失败:', err);
+        }
     };
 
-    // 拖拽文件进入舞台
+    // 按钮打开视频文件
+    const handleOpenVideo = async () => {
+        try {
+            const filePath = await selectVideoFile();
+            if (filePath) {
+                loadVideoFromPath(filePath);
+            }
+        } catch (err) {
+            console.error('选择文件失败:', err);
+        }
+    };
+
+    // 拖拽文件进入舞台 (HTML5 drop 兜底)
     const handleFileLoaded = (file) => {
         if (!file) return;
-        setVideoSource(file);
-        setVideoMeta(prev => ({
-            ...prev,
-            name: file.name,
-            path: file.path || '',
-        }));
-        setCropOffset(0);
+        if (file.path) {
+            loadVideoFromPath(file.path);
+        } else {
+            setVideoSource(file);
+            setVideoMeta(prev => ({
+                ...prev,
+                name: file.name,
+                path: '',
+            }));
+            setCropOffset(0);
+        }
     };
 
     // 快门触发保存
@@ -136,10 +160,10 @@ export function App() {
     }, [snapshots]);
 
     return (
-        <div className="flex flex-col w-screen h-screen bg-[#0d1017] text-slate-100 overflow-hidden font-sans">
-            {/* 极简清爽顶栏 */}
-            <header className="h-14 px-4 bg-[#141820] border-b border-slate-800 flex items-center justify-between shrink-0 select-none z-40">
-                {/* 品牌与主要打开视频按钮 */}
+        <div className="flex flex-col w-screen h-screen bg-[#0a0c10] text-slate-100 overflow-hidden font-sans">
+            {/* 极简精致顶栏 */}
+            <header className="h-14 px-4 bg-[#11141c] border-b border-slate-800/90 flex items-center justify-between shrink-0 select-none z-40">
+                {/* 品牌与打开视频 */}
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shadow-inner">
@@ -155,7 +179,7 @@ export function App() {
 
                     <button
                         onClick={handleOpenVideo}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 hover:text-white transition shadow-sm border border-slate-700"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-xs font-semibold text-emerald-300 transition border border-emerald-500/30"
                     >
                         <Video className="w-3.5 h-3.5 text-emerald-400" />
                         <span>打开视频</span>
@@ -163,8 +187,8 @@ export function App() {
 
                     {/* 视频信息指示 */}
                     {videoMeta.name && (
-                        <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-900/80 border border-slate-800 text-xs text-slate-300 max-w-sm truncate">
-                            <span className="truncate max-w-[180px] font-medium" title={videoMeta.name}>
+                        <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-900/80 border border-slate-800 text-xs text-slate-300 max-w-xs truncate">
+                            <span className="truncate max-w-[160px] font-medium" title={videoMeta.name}>
                                 {videoMeta.name}
                             </span>
                             {videoMeta.width > 0 && (
@@ -176,31 +200,46 @@ export function App() {
                     )}
                 </div>
 
-                {/* 构图与分辨率选择器 */}
-                <div className="flex items-center gap-4 text-xs">
-                    {/* 构图比例 */}
+                {/* 构图截取模式与分辨率选项 */}
+                <div className="flex items-center gap-3 text-xs">
+                    {/* 构图比例：全屏原图 / 9:16 / 3:4 / 1:1 / 4:5 */}
                     <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-800">
-                        <span className="px-2 text-slate-400 font-medium text-[11px]">构图</span>
+                        <span className="px-2 text-slate-400 font-medium text-[11px]">截图构图</span>
+
+                        <button
+                            onClick={() => setCropMode('full')}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition ${
+                                cropMode === 'full'
+                                    ? 'bg-emerald-500 text-slate-950 font-bold shadow'
+                                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                            }`}
+                            title="原比例全屏截取整张视频画面"
+                        >
+                            <Maximize2 className="w-3 h-3" />
+                            <span>全屏原图</span>
+                        </button>
+
                         {['9:16', '3:4', '1:1', '4:5'].map(ratio => (
                             <button
                                 key={ratio}
-                                onClick={() => setPortraitRatio(ratio)}
+                                onClick={() => setCropMode(ratio)}
                                 className={`px-2 py-1 rounded-md font-mono font-medium transition ${
-                                    portraitRatio === ratio
-                                        ? 'bg-emerald-500 text-slate-950 shadow'
+                                    cropMode === ratio
+                                        ? 'bg-emerald-500 text-slate-950 font-bold shadow'
                                         : 'text-slate-300 hover:text-white hover:bg-slate-800'
                                 }`}
+                                title={`截取 ${ratio} 竖图/方图`}
                             >
                                 {ratio}
                             </button>
                         ))}
                     </div>
 
-                    {/* 竖图输出分辨率 */}
+                    {/* 尺寸预设 */}
                     <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-800">
-                        <span className="px-2 text-slate-400 font-medium text-[11px]">尺寸</span>
+                        <span className="px-2 text-slate-400 font-medium text-[11px]">画质尺寸</span>
                         {[
-                            { id: 'original', label: '原画物理' },
+                            { id: 'original', label: '原画无损' },
                             { id: '1080p', label: '1080P' },
                             { id: '720p', label: '720P' },
                         ].map(preset => (
@@ -209,7 +248,7 @@ export function App() {
                                 onClick={() => setResolutionPreset(preset.id)}
                                 className={`px-2 py-1 rounded-md font-medium transition ${
                                     resolutionPreset === preset.id
-                                        ? 'bg-emerald-500 text-slate-950 shadow'
+                                        ? 'bg-emerald-500 text-slate-950 font-bold shadow'
                                         : 'text-slate-300 hover:text-white hover:bg-slate-800'
                                 }`}
                             >
@@ -221,9 +260,9 @@ export function App() {
 
                 {/* 快捷手感提示徽标 */}
                 <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800/80">
-                    <span className="text-emerald-400 font-medium">侧键前后: 连续平滑步进</span>
+                    <span className="text-emerald-400 font-medium">侧键: 平滑步进</span>
                     <span className="text-slate-700">|</span>
-                    <span className="text-emerald-400 font-medium">右键: 瞬间截图</span>
+                    <span className="text-emerald-400 font-medium">右键: 毫秒截图</span>
                     <span className="text-slate-700">|</span>
                     <span className="text-rose-400 font-medium">Del: 秒删废片</span>
                 </div>
@@ -236,7 +275,7 @@ export function App() {
                         videoSource={videoSource}
                         videoMeta={videoMeta}
                         onFileLoaded={handleFileLoaded}
-                        portraitRatio={portraitRatio}
+                        cropMode={cropMode}
                         resolutionPreset={resolutionPreset}
                         cropOffset={cropOffset}
                         onCropOffsetChange={setCropOffset}
