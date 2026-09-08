@@ -304,18 +304,18 @@ export function VideoStage({
         }
     }, []);
 
-    // 监听鼠标侧键（button 3 和 4）
+    // 监听鼠标侧键（调换方向：button 3 快进，button 4 快退）
     const handlePointerDown = (e) => {
         if (e.button === 3) {
             e.preventDefault();
             e.stopPropagation();
-            startStepping(-1);
+            startStepping(1);
             return;
         }
         if (e.button === 4) {
             e.preventDefault();
             e.stopPropagation();
-            startStepping(1);
+            startStepping(-1);
             return;
         }
     };
