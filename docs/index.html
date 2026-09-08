@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快门 (snap) - 本地视频自由快速截图与极速清点工具</title>
+    <meta name="description" content="极简、高流畅度的本地视频取景与快门截图工具，专精视频自由快速截图与极速清点。基于 Tauri 2.0 (Rust) 构建，纯绿色便携免安装，仅 22MB。">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z'/><circle cx='12' cy='13' r='3'/></svg>">
+    <style>
+        :root {
+            --bg: #09090b;
+            --card-bg: #111216;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --card-hover: rgba(255, 255, 255, 0.14);
+            --text-main: #f4f4f5;
+            --text-sub: #a1a1aa;
+            --text-muted: #71717a;
+            --accent: #ffffff;
+            --accent-bg: #18181b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        /* 顶部导航 */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background: rgba(9, 9, 11, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--card-border);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-logo {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: #18181b;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-logo svg {
+            width: 15px;
+            height: 15px;
+            stroke: var(--text-main);
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btn-nav {
+            font-size: 12px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #09090b;
+            transition: all 0.15s ease;
+        }
+
+        .btn-nav:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        /* Hero 区域 */
+        .hero {
+            padding: 130px 24px 70px;
+            max-width: 980px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            background: #14151a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 11px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            color: var(--text-sub);
+            margin-bottom: 24px;
+        }
+
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+        }
+
+        .hero-title {
+            font-size: clamp(32px, 5.5vw, 54px);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+
+        .hero-desc {
+            font-size: clamp(15px, 2vw, 18px);
+            color: var(--text-sub);
+            max-width: 680px;
+            margin: 0 auto 36px;
+            font-weight: 400;
+        }
+
+        .hero-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 44px;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #ffffff;
+            color: #09090b;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 10px 22px;
+            border-radius: 8px;
+            transition: all 0.15s ease;
+            box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.92;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #14151a;
+            color: var(--text-main);
+            font-weight: 500;
+            font-size: 14px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+            transition: all 0.15s ease;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--card-hover);
+            background: #1a1b22;
+        }
+
+        .meta-tags {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            flex-wrap: wrap;
+        }
+
+        .meta-tags span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 特性网格 */
+        .features {
+            max-width: 1040px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .section-header h2 {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+        }
+
+        .section-header p {
+            font-size: 14px;
+            color: var(--text-sub);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            border-color: var(--card-hover);
+            transform: translateY(-2px);
+        }
+
+        .card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: #181920;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .card-icon svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--text-main);
+        }
+
+        .card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .card p {
+            font-size: 13px;
+            color: var(--text-sub);
+            line-height: 1.6;
+        }
+
+        /* 快捷键速查表 */
+        .shortcuts-section {
+            max-width: 860px;
+            margin: 0 auto 90px;
+            padding: 0 24px;
+        }
+
+        .shortcuts-box {
+            background: #0d0e12;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .shortcuts-box h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .shortcuts-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .shortcuts-table tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .shortcuts-table tr:last-child {
+            border-bottom: none;
+        }
+
+        .shortcuts-table td {
+            padding: 10px 0;
+            color: var(--text-sub);
+        }
+
+        .shortcuts-table td:first-child {
+            color: var(--text-main);
+            font-weight: 500;
+            width: 220px;
+        }
+
+        kbd {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 11px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            background: #181920;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            color: #ffffff;
+            margin: 0 2px;
+        }
+
+        /* 页脚 */
+        footer {
+            border-top: 1px solid var(--card-border);
+            padding: 32px 24px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        footer a:hover {
+            color: var(--text-main);
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶栏导航 -->
+    <nav class="nav">
+        <div class="nav-brand">
+            <div class="nav-logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                    <circle cx="12" cy="13" r="3"/>
+                </svg>
+            </div>
+            <span>快门 snap</span>
+        </div>
+        <div class="nav-links">
+            <a href="https://github.com/qh775885/snap" target="_blank" style="font-size: 13px; color: var(--text-sub);">GitHub</a>
+            <a href="https://github.com/qh775885/snap/releases/latest" target="_blank" class="btn-nav">立即下载</a>
+        </div>
+    </nav>
+
+    <!-- 主展示区 -->
+    <header class="hero">
+        <div class="badge">
+            <span class="badge-dot"></span>
+            <span>v2.3.0 · 纯绿色便携免安装版已发布</span>
+        </div>
+        <h1 class="hero-title">
+            专精视频自由快速截图<br>与极速清点
+        </h1>
+        <p class="hero-desc">
+            告别臃肿。基于 Tauri 2.0 (Rust) 构建，整包免安装仅 22MB，内存占用仅 25MB。单手鼠标极速高刷步进，右键快门直裁，Del 瞬间物理秒删本地废片。
+        </p>
+
+        <div class="hero-actions">
+            <a href="https://github.com/qh775885/snap/releases/latest" target="_blank" class="btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>下载 Windows 便携版 (5.9 MB)</span>
+            </a>
+            <a href="https://github.com/qh775885/snap" target="_blank" class="btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+                <span>GitHub 开源仓库</span>
+            </a>
+        </div>
+
+        <div class="meta-tags">
+            <span>⚡ 0ms 零延迟微动</span>
+            <span>·</span>
+            <span>📦 免安装纯绿色</span>
+            <span>·</span>
+            <span>🎯 100% 原始点对点超清</span>
+            <span>·</span>
+            <span>🗑️ Del 物理秒删硬盘废片</span>
+        </div>
+    </header>
+
+    <!-- 核心特性 -->
+    <section class="features">
+        <div class="section-header">
+            <h2>为极致效率而生的四大支柱</h2>
+            <p>拒绝 AI 噱头，把全部算力让渡给单手机械式操控手感</p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                </div>
+                <h3>单手高刷步进与倒带</h3>
+                <p>大拇指单击 0.15s 零延迟微动（专挑神采），长按无缝接管原生 GPU 倍速冲刺，后退采用 seeked 垂直同步流水线，松手 0ms 瞬间急停。</p>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                </div>
+                <h3>毫秒快门直裁 · 自由比例</h3>
+                <p>鼠标右键瞬间击发写盘。支持全屏原画、9:16、3:4、1:1、4:5 以及八向边角自由拖拽比例，100% 原始物理像素点对点超清保存。</p>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                </div>
+                <h3>靶场图库 · 物理秒删废片</h3>
+                <p>右侧双列完整原貌展示，杜绝裁切缩略。按 Del 键瞬间彻底删除本地硬盘废片并自动焦点顺移，双击无缝进入全屏沉浸看图器。</p>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                </div>
+                <h3>原生全格式硬件硬解</h3>
+                <p>支持 MP4 原生硬解与 MPEG-TS（内置 mpegts.js 零延迟流式解封装）。首帧激活技术，拖入即放，第一秒第一帧瞬间立现。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 操作速查 -->
+    <section class="shortcuts-section">
+        <div class="shortcuts-box">
+            <h3>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="14" y2="12"/><line x1="18" y1="12" x2="18" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg>
+                <span>单手鼠标与键盘映射表</span>
+            </h3>
+            <table class="shortcuts-table">
+                <tr>
+                    <td>毫秒快门截取</td>
+                    <td><kbd>鼠标右键</kbd> 或键盘 <kbd>S</kbd> 键（瞬间抓取并异步写入本地硬盘）</td>
+                </tr>
+                <tr>
+                    <td>快进步进</td>
+                    <td><kbd>鼠标侧键(前)</kbd> 或键盘 <kbd>→</kbd>（单击微动，长按倍速放映冲刺）</td>
+                </tr>
+                <tr>
+                    <td>快退步进</td>
+                    <td><kbd>鼠标侧键(后)</kbd> 或键盘 <kbd>←</kbd>（单击微退，长按高刷倒带）</td>
+                </tr>
+                <tr>
+                    <td>秒删废片</td>
+                    <td><kbd>Del</kbd> 或 <kbd>Backspace</kbd>（物理删除当前选中废片，自动切下一张）</td>
+                </tr>
+                <tr>
+                    <td>大图看图器</td>
+                    <td>双击卡片或按 <kbd>Enter</kbd>（支持方向键切图、Del键秒删、Esc退出）</td>
+                </tr>
+                <tr>
+                    <td>播放 / 暂停</td>
+                    <td><kbd>Space</kbd> 空格键</td>
+                </tr>
+            </table>
+        </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer>
+        <p>© 2026 快门 (snap) · 自由、纯粹、高生产力的本地视频快门神器</p>
+        <p style="margin-top: 6px;">
+            <a href="https://github.com/qh775885/snap" target="_blank">GitHub Repository</a> · 
+            <a href="https://github.com/qh775885/snap/releases/latest" target="_blank">Latest Release</a>
+        </p>
+    </footer>
+</body>
+</html>
