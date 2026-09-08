@@ -1,6 +1,6 @@
 [package]
 name = "snap"
-version = "2.2.0"
+version = "2.3.0"
 description = "快门 - 本地视频取景与横截竖图工具"
 authors = ["qh775885"]
 license = "GPL-3.0"
