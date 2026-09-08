@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Video, Film, Play, Pause, RotateCcw, Crosshair, ChevronLeft, ChevronRight, Maximize2, Crop } from 'lucide-react';
+import { Video, Film, Play, Pause, RotateCcw, Crosshair, ChevronLeft, ChevronRight, ChevronDown, Check, Maximize2, Crop } from 'lucide-react';
 import mpegts from 'mpegts.js';
 
 export function VideoStage({
@@ -40,10 +40,25 @@ export function VideoStage({
     const [speedGear, setSpeedGear] = useState(() => {
         return localStorage.getItem('snap_speed_gear') || 'normal';
     });
+    const [isGearMenuOpen, setIsGearMenuOpen] = useState(false);
+    const gearMenuRef = useRef(null);
     const speedGearRef = useRef(speedGear);
+
     useEffect(() => {
         speedGearRef.current = speedGear;
     }, [speedGear]);
+
+    // 点击外部自动收起档位菜单
+    useEffect(() => {
+        if (!isGearMenuOpen) return;
+        const handleClickOutside = (e) => {
+            if (gearMenuRef.current && !gearMenuRef.current.contains(e.target)) {
+                setIsGearMenuOpen(false);
+            }
+        };
+        window.addEventListener('pointerdown', handleClickOutside);
+        return () => window.removeEventListener('pointerdown', handleClickOutside);
+    }, [isGearMenuOpen]);
 
     // 裁切框屏幕像素几何
     const [boxLayout, setBoxLayout] = useState({
@@ -278,6 +293,27 @@ export function VideoStage({
             rewindSteps: [0.25, 0.45, 0.70],
         },
     };
+
+    const GEAR_OPTIONS = [
+        {
+            id: 'normal',
+            name: '标准',
+            stepLabel: '0.15s',
+            desc: '抓微表情 / 微妙神态 (短视频)',
+        },
+        {
+            id: 'medium',
+            name: '中速',
+            stepLabel: '0.6s',
+            desc: '换肢体动作 / 舞台直拍 (中长视频)',
+        },
+        {
+            id: 'fast',
+            name: '快速',
+            stepLabel: '2.5s',
+            desc: '巡航赶路 / 电影长片 (长视频)',
+        },
+    ];
 
     // ===== 3. 人体工学级平滑步进引擎（支持标准/中速/快速三档切换，点按微动，长按倍速放映/倒带，松手瞬间急停） =====
     const steppingRef = useRef({
@@ -1081,29 +1117,69 @@ export function VideoStage({
 
                             <div className="h-3 w-px bg-white/[0.08] mx-1" />
 
-                            {/* 快进快退步进档位切换：标准 | 中速 | 快速 */}
-                            <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-md border border-white/[0.07] text-[11px] font-mono">
-                                {[
-                                    { id: 'normal', label: '标准', tip: '标准档：点按0.15s · 长按2x~10x (短视频/抓微表情)' },
-                                    { id: 'medium', label: '中速', tip: '中速档：点按0.6s · 长按4x~14x (中长视频/舞台直拍)' },
-                                    { id: 'fast', label: '快速', tip: '快速档：点按2.5s · 长按8x~24x (大长视频/电影巡航)' },
-                                ].map(gear => (
-                                    <button
-                                        key={gear.id}
-                                        onClick={() => {
-                                            setSpeedGear(gear.id);
-                                            localStorage.setItem('snap_speed_gear', gear.id);
-                                        }}
-                                        className={`px-2 py-0.5 rounded transition ${
-                                            speedGear === gear.id
-                                                ? 'bg-zinc-800 text-white font-medium shadow-sm border border-white/[0.08]'
-                                                : 'text-zinc-400 hover:text-zinc-200'
-                                        }`}
-                                        title={gear.tip}
-                                    >
-                                        {gear.label}
-                                    </button>
-                                ))}
+                            {/* 步长档位选择胶囊（点击弹出选项气泡） */}
+                            <div className="relative" ref={gearMenuRef}>
+                                {(() => {
+                                    const currGear = GEAR_OPTIONS.find(g => g.id === speedGear) || GEAR_OPTIONS[0];
+                                    return (
+                                        <>
+                                            <button
+                                                onClick={() => setIsGearMenuOpen(prev => !prev)}
+                                                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-mono transition shadow-sm select-none ${
+                                                    isGearMenuOpen
+                                                        ? 'bg-zinc-800 text-white border-zinc-500'
+                                                        : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white border-white/[0.08]'
+                                                }`}
+                                                title="点击调整快进/快退步长与长按速率"
+                                            >
+                                                <span className="text-zinc-500 text-[10px]">步长:</span>
+                                                <span className="font-semibold text-zinc-100">{currGear.name}</span>
+                                                <span className="text-zinc-400 text-[10px]">{currGear.stepLabel}</span>
+                                                <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${isGearMenuOpen ? 'rotate-180 text-zinc-200' : ''}`} />
+                                            </button>
+
+                                            {/* 向上展开的档位说明与选择面板 */}
+                                            {isGearMenuOpen && (
+                                                <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#12141a]/95 backdrop-blur-xl border border-white/[0.1] rounded-xl shadow-2xl p-1.5 z-50 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-100 font-sans">
+                                                    <div className="px-2.5 py-1 text-[10px] font-mono text-zinc-500 uppercase tracking-wider border-b border-white/[0.06] mb-0.5">
+                                                        快进 / 快退步长档位
+                                                    </div>
+                                                    {GEAR_OPTIONS.map(gear => {
+                                                        const isSelected = speedGear === gear.id;
+                                                        return (
+                                                            <button
+                                                                key={gear.id}
+                                                                onClick={() => {
+                                                                    setSpeedGear(gear.id);
+                                                                    localStorage.setItem('snap_speed_gear', gear.id);
+                                                                    setIsGearMenuOpen(false);
+                                                                }}
+                                                                className={`w-full text-left px-2.5 py-2 rounded-lg transition flex items-center justify-between group ${
+                                                                    isSelected
+                                                                        ? 'bg-zinc-800/90 border border-white/[0.08] text-white'
+                                                                        : 'hover:bg-zinc-800/50 text-zinc-300 hover:text-white'
+                                                                }`}
+                                                            >
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs font-semibold text-zinc-100">{gear.name}</span>
+                                                                        <span className="px-1.5 py-0.2 rounded bg-zinc-900 border border-white/[0.06] text-[10px] font-mono text-zinc-400">
+                                                                            {gear.stepLabel}
+                                                                        </span>
+                                                                    </div>
+                                                                    <span className="text-[11px] text-zinc-500 group-hover:text-zinc-400 leading-tight">
+                                                                        {gear.desc}
+                                                                    </span>
+                                                                </div>
+                                                                {isSelected && <Check className="w-3.5 h-3.5 text-zinc-200 shrink-0 ml-2" />}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
 
