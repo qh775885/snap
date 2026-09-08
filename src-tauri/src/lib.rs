@@ -175,6 +175,25 @@ fn check_media_file(file_path: String) -> MediaCheckResult {
     }
 }
 
+#[tauri::command]
+fn app_minimize(window: tauri::Window) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn app_toggle_maximize(window: tauri::Window) -> Result<(), String> {
+    if window.is_maximized().unwrap_or(false) {
+        window.unmaximize().map_err(|e| e.to_string())
+    } else {
+        window.maximize().map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+fn app_close(window: tauri::Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -194,7 +213,10 @@ pub fn run() {
             open_path,
             save_snapshot,
             delete_snapshot,
-            check_media_file
+            check_media_file,
+            app_minimize,
+            app_toggle_maximize,
+            app_close
         ])
         .run(tauri::generate_context!())
         .expect("运行快门应用程序失败");

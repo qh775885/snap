@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Camera, FolderOpen, Video, Maximize2, Crop } from 'lucide-react';
+import { Camera, FolderOpen, Video, Maximize2, Crop, Minus, Square, X } from 'lucide-react';
 import { VideoStage } from './components/VideoStage';
 import { Gallery } from './components/Gallery';
-import { selectFolder, selectVideoFile, saveSnapshot, deleteSnapshot, toAssetUrl, setupNativeFileDrop } from './bridge';
+import { selectFolder, selectVideoFile, saveSnapshot, deleteSnapshot, toAssetUrl, setupNativeFileDrop, minimizeWindow, toggleMaximizeWindow, closeWindow } from './bridge';
 
 export function App() {
     // 当前视频源
@@ -162,13 +162,16 @@ export function App() {
 
     return (
         <div className="flex flex-col w-screen h-screen bg-[#09090b] text-zinc-100 overflow-hidden font-sans">
-            {/* 顶栏：现代硬朗极简工业美学 */}
-            <header className="h-12 px-3.5 bg-[#0d0e11] border-b border-white/[0.07] flex items-center justify-between shrink-0 select-none z-40">
+            {/* 顶栏：沉浸式一体化无框工业美学 (支持原生窗口拖拽与窗口控制) */}
+            <header
+                data-tauri-drag-region
+                className="h-11 px-3.5 bg-[#0c0d11] border-b border-white/[0.07] flex items-center justify-between shrink-0 select-none z-40"
+            >
                 {/* 左侧：品牌与打开视频 */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3" data-tauri-drag-region="false">
                     <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-md bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center shadow-inner text-zinc-200">
-                            <Camera className="w-3.5 h-3.5" />
+                        <div className="w-6 h-6 rounded bg-zinc-800 border border-zinc-700/60 flex items-center justify-center shadow-inner text-zinc-200">
+                            <Camera className="w-3 h-3" />
                         </div>
                         <span className="text-xs font-semibold tracking-wider text-zinc-100 uppercase font-mono">Snap 快门</span>
                     </div>
@@ -177,7 +180,7 @@ export function App() {
 
                     <button
                         onClick={handleOpenVideo}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800/80 hover:bg-zinc-700/80 text-xs font-medium text-zinc-200 hover:text-white transition border border-white/[0.06] shadow-sm"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-800/90 hover:bg-zinc-700/90 text-xs font-medium text-zinc-200 hover:text-white transition border border-white/[0.06] shadow-sm"
                     >
                         <Video className="w-3.5 h-3.5 text-zinc-400" />
                         <span>打开视频</span>
@@ -186,7 +189,7 @@ export function App() {
                     {/* 视频信息指示 */}
                     {videoMeta.name && (
                         <div className="flex items-center gap-2 px-2 py-0.5 rounded bg-zinc-900/90 border border-white/[0.06] text-xs text-zinc-300 max-w-sm truncate">
-                            <span className="truncate max-w-[180px] font-medium text-zinc-200" title={videoMeta.name}>
+                            <span className="truncate max-w-[160px] font-medium text-zinc-200" title={videoMeta.name}>
                                 {videoMeta.name}
                             </span>
                             {videoMeta.width > 0 && (
@@ -199,7 +202,7 @@ export function App() {
                 </div>
 
                 {/* 中间：截图构图比例选择器（Segmented Control） */}
-                <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-lg border border-white/[0.07] text-xs">
+                <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-lg border border-white/[0.07] text-xs" data-tauri-drag-region="false">
                     <button
                         onClick={() => setCropMode('full')}
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition ${
@@ -242,8 +245,8 @@ export function App() {
                     ))}
                 </div>
 
-                {/* 右侧：极简操作指引 */}
-                <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono">
+                {/* 右侧：极简操作指引 + 原生沉浸式窗口控件 */}
+                <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono" data-tauri-drag-region="false">
                     <div className="flex items-center gap-2 text-[11px] text-zinc-400">
                         <span className="flex items-center gap-1">
                             <kbd className="px-1 py-0.5 rounded bg-zinc-800/90 border border-zinc-700/60 text-zinc-300 text-[10px]">右键</kbd> 快门
@@ -256,6 +259,33 @@ export function App() {
                         <span className="flex items-center gap-1">
                             <kbd className="px-1 py-0.5 rounded bg-zinc-800/90 border border-zinc-700/60 text-zinc-300 text-[10px]">Del</kbd> 删废片
                         </span>
+                    </div>
+
+                    <div className="h-3 w-px bg-white/[0.08]" />
+
+                    {/* 沉浸式窗口控制按钮组 (Window Controls) */}
+                    <div className="flex items-center -mr-1.5">
+                        <button
+                            onClick={minimizeWindow}
+                            className="w-7 h-7 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+                            title="最小化"
+                        >
+                            <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            onClick={toggleMaximizeWindow}
+                            className="w-7 h-7 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+                            title="最大化 / 还原"
+                        >
+                            <Square className="w-3 h-3 stroke-[1.75]" />
+                        </button>
+                        <button
+                            onClick={closeWindow}
+                            className="w-7 h-7 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-rose-600 transition"
+                            title="关闭"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
                     </div>
                 </div>
             </header>

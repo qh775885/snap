@@ -119,6 +119,28 @@ export function toAssetUrl(filePath) {
     }
 }
 
+// 窗口控制原生方法
+export async function minimizeWindow() {
+    const core = await getTauriCore();
+    if (core && core.invoke) {
+        return await core.invoke('app_minimize');
+    }
+}
+
+export async function toggleMaximizeWindow() {
+    const core = await getTauriCore();
+    if (core && core.invoke) {
+        return await core.invoke('app_toggle_maximize');
+    }
+}
+
+export async function closeWindow() {
+    const core = await getTauriCore();
+    if (core && core.invoke) {
+        return await core.invoke('app_close');
+    }
+}
+
 // Tauri 2.0 原生窗口文件拖拽监听（彻底解决 HTML5 drop 在桌面端无法拿到路径的问题）
 export async function setupNativeFileDrop(onDropFilePaths) {
     try {
