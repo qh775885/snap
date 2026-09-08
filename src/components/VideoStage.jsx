@@ -251,11 +251,14 @@ export function VideoStage({
         return () => observer.disconnect();
     }, [updateLayout]);
 
-    // ===== 3. 专业级高刷平滑步进引擎（侧键前后：单击单帧微调，长按平滑加速） =====
+    // ===== 3. 人体工学级平滑步进引擎（点按 0.15s 微动，长按原生 GPU 倍速放映/倒带，松手瞬间急停） =====
     const steppingRef = useRef({
         active: false,
         direction: 1, // 1: 前进, -1: 后退
         startTime: 0,
+        isFastForwarding: false,
+        isRewinding: false,
+        lastRewindTime: 0,
         rafId: null,
     });
 
@@ -269,25 +272,47 @@ export function VideoStage({
         const now = performance.now();
         const elapsed = now - state.startTime;
 
-        if (elapsed < 180) {
+        // 前 200ms 为单击点按判定缓冲期（按下瞬间已零延迟完成一次 0.15s 步进）
+        if (elapsed < 200) {
             state.rafId = requestAnimationFrame(stepEngine);
             return;
         }
 
-        // 长按平滑递增提速
-        let rate = 1.0;
-        if (elapsed > 2000) {
-            rate = 8.0 + Math.min(8.0, (elapsed - 2000) / 400); // 8x ~ 16x
-        } else if (elapsed > 800) {
-            rate = 2.0 + ((elapsed - 800) / 1200) * 4.0; // 2x ~ 6x
-        } else {
-            rate = 1.0;
-        }
+        // 按住超过 200ms，无缝进入长按动态连续模式
+        if (state.direction === 1) {
+            // 前进：利用原生 GPU 硬件加速倍速播放，彻底根除硬 seek 的卡顿感
+            if (!state.isFastForwarding) {
+                state.isFastForwarding = true;
+                video.muted = true;
+                video.playbackRate = 2.0;
+                video.play().catch(() => {});
+                setIsPlaying(true);
+            }
 
-        if (!video.seeking) {
-            const frameDelta = (1 / 30) * rate;
-            const newTime = Math.max(0, Math.min(video.duration || 999999, video.currentTime + frameDelta * state.direction));
-            video.currentTime = newTime;
+            // 阶梯式平滑提速：按得越久越快
+            if (elapsed > 2500) {
+                video.playbackRate = 10.0; // 极速赶路
+            } else if (elapsed > 1000) {
+                video.playbackRate = 5.0;  // 快速掠过
+            } else {
+                video.playbackRate = 2.0;  // 丝滑放映，微表情尽收眼底
+            }
+        } else {
+            // 后退：按匀称节拍平滑倒带
+            state.isRewinding = true;
+            if (!video.paused) {
+                video.pause();
+                setIsPlaying(false);
+            }
+
+            // 节拍平滑倒退（每 60ms 倒退一步）
+            if (now - state.lastRewindTime > 60) {
+                state.lastRewindTime = now;
+                const rewindStep = elapsed > 1000 ? 0.35 : 0.15;
+                const nextTime = Math.max(0, video.currentTime - rewindStep);
+                video.currentTime = nextTime;
+                setCurrentTime(nextTime);
+            }
         }
 
         state.rafId = requestAnimationFrame(stepEngine);
@@ -297,18 +322,25 @@ export function VideoStage({
         const video = videoRef.current;
         if (!video) return;
 
+        // 1. 按下瞬间 0 毫秒即时响应：跳动 0.15 秒（约 4~5 帧的动作微演进），大拇指点按手感清脆
+        const stepDelta = 0.15 * direction;
+        const targetTime = Math.max(0, Math.min(video.duration || 999999, video.currentTime + stepDelta));
+        video.currentTime = targetTime;
+        setCurrentTime(targetTime);
+
         if (!video.paused) {
             video.pause();
             setIsPlaying(false);
         }
 
-        const singleFrameDelta = 1 / 30;
-        video.currentTime = Math.max(0, Math.min(video.duration || 999999, video.currentTime + singleFrameDelta * direction));
-
+        // 2. 启动长按检测
         const state = steppingRef.current;
         state.active = true;
         state.direction = direction;
         state.startTime = performance.now();
+        state.isFastForwarding = false;
+        state.isRewinding = false;
+        state.lastRewindTime = performance.now();
 
         if (state.rafId) cancelAnimationFrame(state.rafId);
         state.rafId = requestAnimationFrame(stepEngine);
@@ -316,11 +348,30 @@ export function VideoStage({
 
     const stopStepping = useCallback(() => {
         const state = steppingRef.current;
+        if (!state.active) return;
         state.active = false;
+
         if (state.rafId) {
             cancelAnimationFrame(state.rafId);
             state.rafId = null;
         }
+
+        const video = videoRef.current;
+        if (video) {
+            // 松手瞬间 0 毫秒物理急停，定格在当前帧
+            if (state.isFastForwarding) {
+                video.pause();
+                video.playbackRate = 1.0;
+                setIsPlaying(false);
+                setCurrentTime(video.currentTime);
+            }
+            if (state.isRewinding) {
+                setCurrentTime(video.currentTime);
+            }
+        }
+
+        state.isFastForwarding = false;
+        state.isRewinding = false;
     }, []);
 
     // 监听鼠标侧键（调换方向：button 3 快进，button 4 快退）
@@ -382,11 +433,13 @@ export function VideoStage({
         window.addEventListener('pointerup', onGlobalMouseUp);
         window.addEventListener('keydown', onKeyDown);
         window.addEventListener('keyup', onKeyUp);
+        window.addEventListener('blur', stopStepping);
 
         return () => {
             window.removeEventListener('pointerup', onGlobalMouseUp);
             window.removeEventListener('keydown', onKeyDown);
             window.removeEventListener('keyup', onKeyUp);
+            window.removeEventListener('blur', stopStepping);
             stopStepping();
         };
     }, [startStepping, stopStepping]);
@@ -949,14 +1002,14 @@ export function VideoStage({
                             <button
                                 onClick={() => startStepping(-1)}
                                 className="p-1 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/[0.06] transition"
-                                title="单帧后退 (侧键后退 / 左方向键)"
+                                title="微调后退 (侧键后退 / 左方向键)"
                             >
                                 <ChevronLeft className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 onClick={() => startStepping(1)}
                                 className="p-1 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/[0.06] transition"
-                                title="单帧前进 (侧键前进 / 右方向键)"
+                                title="微调前进 (侧键前进 / 右方向键)"
                             >
                                 <ChevronRight className="w-3.5 h-3.5" />
                             </button>
