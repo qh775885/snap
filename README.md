@@ -2,6 +2,10 @@
 
 > **专精“视频自由快速截图”与“极速清点”的本地高保真视频快门利器。**
 
+<p align="center">
+  <img src="docs/preview.png" alt="快门主工作台界面预览" width="900" style="border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+</p>
+
 基于 **Tauri 2.0 (Rust) + 系统 WebView2 + React 19 + Vite** 构建，完全去除臃肿依赖，免安装单文件仅 **22MB**，内存占用仅 **25MB**。
 
 ---
