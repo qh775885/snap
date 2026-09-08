@@ -298,24 +298,53 @@ export function VideoStage({
                 video.playbackRate = 2.0;  // 丝滑放映，微表情尽收眼底
             }
         } else {
-            // 后退：按匀称节拍平滑倒带
-            state.isRewinding = true;
-            if (!video.paused) {
-                video.pause();
-                setIsPlaying(false);
-            }
-
-            // 节拍平滑倒退（每 60ms 倒退一步）
-            if (now - state.lastRewindTime > 60) {
-                state.lastRewindTime = now;
-                const rewindStep = elapsed > 1000 ? 0.35 : 0.15;
-                const nextTime = Math.max(0, video.currentTime - rewindStep);
+            // 后退：启动硬件级自驱动倒带流水线（以微帧 0.04s 顺滑倒放，绝不卡顿）
+            if (!state.isRewinding) {
+                state.isRewinding = true;
+                if (!video.paused) {
+                    video.pause();
+                    setIsPlaying(false);
+                }
+                // 触发首步倒退，后续由 onSeeked 紧密接力自驱动
+                const nextTime = Math.max(0, video.currentTime - 0.04);
                 video.currentTime = nextTime;
                 setCurrentTime(nextTime);
             }
         }
 
         state.rafId = requestAnimationFrame(stepEngine);
+    }, []);
+
+    // 硬件解码级倒带接力：上一帧 GPU 渲染完成 (seeked)，紧随垂直同步无缝下发下一微帧
+    const handleSeeked = useCallback(() => {
+        const state = steppingRef.current;
+        if (state.active && state.direction === -1 && state.isRewinding) {
+            const video = videoRef.current;
+            if (!video || video.currentTime <= 0) return;
+
+            const now = performance.now();
+            const elapsed = now - state.startTime;
+
+            // 根据长按时间平滑提速
+            let speedMultiplier = 1.0;
+            if (elapsed > 2500) {
+                speedMultiplier = 3.5; // 极速倒退
+            } else if (elapsed > 1000) {
+                speedMultiplier = 2.0; // 较快倒退
+            } else {
+                speedMultiplier = 1.0; // 基础丝滑倒放 (~2x 速率)
+            }
+
+            const step = 0.04 * speedMultiplier;
+            const nextTime = Math.max(0, video.currentTime - step);
+
+            requestAnimationFrame(() => {
+                if (steppingRef.current.active && steppingRef.current.direction === -1 && steppingRef.current.isRewinding) {
+                    video.currentTime = nextTime;
+                    setCurrentTime(nextTime);
+                }
+            });
+        }
     }, []);
 
     const startStepping = useCallback((direction) => {
@@ -825,6 +854,7 @@ export function VideoStage({
                             preload="auto"
                             onLoadedMetadata={handleLoadedMetadata}
                             onLoadedData={handleLoadedData}
+                            onSeeked={handleSeeked}
                             onTimeUpdate={() => {
                                 const t = videoRef.current?.currentTime || 0;
                                 setCurrentTime(t);
