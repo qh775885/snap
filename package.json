@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "version": "2.3.0",
-  "description": "快门 - 本地视频取景与横截竖图工具",
+  "description": "快门 - 本地视频自由快速截图与极速清点工具",
   "author": "qh775885",
   "license": "GPL-3.0",
   "scripts": {
