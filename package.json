@@ -1,82 +1,35 @@
 {
   "name": "snap",
   "private": true,
-  "version": "2.1.5",
+  "version": "2.2.0",
   "description": "快门 - 本地视频取景与横截竖图工具",
   "author": "qh775885",
   "license": "GPL-3.0",
-  "main": "electron-main.js",
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev": "tauri dev",
     "dev:web": "vite --host 127.0.0.1 --port 5173 --strictPort",
-    "dev:electron": "set VITE_DEV_SERVER_URL=http://127.0.0.1:5173 && wait-on tcp:5173 && electron .",
     "web": "vite",
     "preview": "vite preview",
-    "clean:base": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Get-Process | Where-Object { $_.ProcessName -eq '视频截图神器' -or $_.ProcessName -eq 'electron' } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; foreach ($p in @('dist','extracted_asar')) { if (Test-Path $p) { Remove-Item $p -Recurse -Force } }\"",
-    "clean:dir": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$releaseRoot = 'release'; if (!(Test-Path $releaseRoot)) { New-Item -ItemType Directory -Path $releaseRoot | Out-Null }; foreach ($p in @(('视频截图神器-' + $env:npm_package_version + '-绿色版'), 'win-unpacked', '.icon-ico', 'builder-debug.yml', 'builder-effective-config.yaml')) { $full = Join-Path $releaseRoot $p; if (Test-Path $full) { Remove-Item $full -Recurse -Force -ErrorAction SilentlyContinue } }\"",
-    "clean:setup": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$releaseRoot = 'release'; if (!(Test-Path $releaseRoot)) { New-Item -ItemType Directory -Path $releaseRoot | Out-Null }; foreach ($p in @(('视频截图神器 Setup ' + $env:npm_package_version + '.exe'), ('视频截图神器 Setup ' + $env:npm_package_version + '.exe.blockmap'), 'latest.yml', 'builder-debug.yml', 'builder-effective-config.yaml', 'win-unpacked', '.icon-ico')) { $full = Join-Path $releaseRoot $p; if (Test-Path $full) { Remove-Item $full -Recurse -Force -ErrorAction SilentlyContinue } }\"",
     "verify": "vite build",
-    "build": "npm run build:dir",
-    "build:dir": "npm run clean:base && npm run clean:dir && npm run verify && electron-builder --win dir && powershell -NoProfile -ExecutionPolicy Bypass -Command \"$base = 'release'; $src = Join-Path $base 'win-unpacked'; $dst = Join-Path $base ('视频截图神器-' + $env:npm_package_version + '-绿色版'); if (Test-Path $dst) { Remove-Item $dst -Recurse -Force }; if (Test-Path $src) { Move-Item $src $dst }; foreach ($p in @('.icon-ico','builder-debug.yml','builder-effective-config.yaml')) { $full = Join-Path $base $p; if (Test-Path $full) { Remove-Item $full -Recurse -Force -ErrorAction SilentlyContinue } }\"",
-    "build:setup": "npm run clean:base && npm run clean:setup && npm run verify && electron-builder --win nsis && powershell -NoProfile -ExecutionPolicy Bypass -Command \"$base = 'release'; foreach ($p in @('win-unpacked', '.icon-ico', 'builder-debug.yml', 'builder-effective-config.yaml', 'latest.yml', ('视频截图神器 Setup ' + $env:npm_package_version + '.exe.blockmap'))) { $full = Join-Path $base $p; if (Test-Path $full) { Remove-Item $full -Recurse -Force -ErrorAction SilentlyContinue } }\""
-  },
-  "build": {
-    "appId": "com.qh775885.snap",
-    "productName": "快门",
-    "icon": "public/icon.png",
-    "afterPack": "scripts/after-pack-clean.js",
-    "files": [
-      "dist/**/*",
-      "electron-main.js",
-      "package.json",
-      "public/icon.png"
-    ],
-    "electronLanguages": [
-      "zh-CN"
-    ],
-    "directories": {
-      "output": "release"
-    },
-    "win": {
-      "icon": "public/icon.png",
-      "target": [
-        "nsis"
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "perMachine": false,
-      "allowElevation": true,
-      "include": "build/installer.nsh",
-      "warningsAsErrors": false,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "视频截图神器",
-      "uninstallDisplayName": "视频截图神器"
-    }
+    "clean": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"if (Test-Path dist) { Remove-Item dist -Recurse -Force }; if (Test-Path release) { Remove-Item release -Recurse -Force }\"",
+    "build": "npm run verify && npx tauri build --no-bundle && powershell -NoProfile -ExecutionPolicy Bypass -Command \"$outDir = 'release/快门-免安装绿色版'; if (!(Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }; Copy-Item 'src-tauri/target/release/snap.exe' (Join-Path $outDir '快门.exe') -Force; Write-Host '绿色免安装版已输出至 release/快门-免安装绿色版/快门.exe'\""
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/cli": "^2.11.4",
     "@vitejs/plugin-react": "^5.1.2",
     "autoprefixer": "^10.4.23",
     "clsx": "^2.1.1",
-    "concurrently": "^9.2.1",
-    "electron": "^39.2.7",
-    "electron-builder": "^26.0.12",
-    "file-saver": "^2.0.5",
-    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "postcss": "^8.5.6",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
-    "vite": "^7.2.4",
-    "wait-on": "^8.0.5"
+    "vite": "^7.2.4"
   },
   "dependencies": {
-    "ffmpeg-static": "^5.2.0",
-    "fluent-ffmpeg": "^2.1.3"
+    "mpegts.js": "^1.8.2"
   }
 }

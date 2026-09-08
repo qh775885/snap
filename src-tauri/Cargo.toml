@@ -1,0 +1,26 @@
+[package]
+name = "snap"
+version = "2.2.0"
+description = "快门 - 本地视频取景与横截竖图工具"
+authors = ["qh775885"]
+license = "GPL-3.0"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "snap_lib"
+crate-type = ["staticlib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.3", features = ["protocol-asset"] }
+tauri-plugin-log = "2"
+rfd = "0.15"
+base64 = "0.22"
+chrono = "0.4"
+open = "5.3"
