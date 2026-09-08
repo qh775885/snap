@@ -117,7 +117,7 @@ export function VideoStage({
         };
     }, [videoSource]);
 
-    // ===== 2. 视频元数据就绪与几何自适应 =====
+    // ===== 2. 视频元数据就绪与首帧激活 =====
     const handleLoadedMetadata = () => {
         const video = videoRef.current;
         if (!video) return;
@@ -131,6 +131,25 @@ export function VideoStage({
         if (onVideoLoaded) onVideoLoaded({ width: vw, height: vh, duration: dur });
 
         updateLayout(vw, vh);
+
+        // 彻底解决首帧黑屏：微小步进 0.001 秒强制激活 GPU 渲染管线，第一秒第一帧画面瞬间立现！
+        try {
+            if (video.currentTime < 0.001) {
+                video.currentTime = 0.001;
+            }
+        } catch (e) {
+            console.warn('首帧激活微调跳过:', e);
+        }
+    };
+
+    const handleLoadedData = () => {
+        const video = videoRef.current;
+        if (!video) return;
+        try {
+            if (video.currentTime < 0.001) {
+                video.currentTime = 0.001;
+            }
+        } catch {}
     };
 
     // 重新计算屏幕上视频与裁切框的绝对位置
@@ -612,21 +631,6 @@ export function VideoStage({
                 <div className="absolute inset-0 bg-white/75 z-50 pointer-events-none transition-opacity duration-75" />
             )}
 
-            {/* 隐藏的真实 video 元素 */}
-            <video
-                ref={videoRef}
-                className="hidden"
-                crossOrigin="anonymous"
-                playsInline
-                onLoadedMetadata={handleLoadedMetadata}
-                onTimeUpdate={() => {
-                    const t = videoRef.current?.currentTime || 0;
-                    setCurrentTime(t);
-                    if (onTimeUpdate) onTimeUpdate(t);
-                }}
-                onEnded={() => setIsPlaying(false)}
-            />
-
             {/* 当没有加载视频时显示拖放引导 */}
             {!videoSource && (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-4 pointer-events-none">
@@ -657,18 +661,21 @@ export function VideoStage({
                             height: `${boxLayout.videoHeight}px`,
                         }}
                     >
-                        {/* 视频真实画面 Canvas */}
-                        <canvas
-                            ref={(canvas) => {
-                                if (!canvas || !videoRef.current) return;
-                                canvas.width = boxLayout.videoWidth;
-                                canvas.height = boxLayout.videoHeight;
-                                const ctx = canvas.getContext('2d');
-                                if (ctx && videoRef.current) {
-                                    ctx.drawImage(videoRef.current, 0, 0, boxLayout.videoWidth, boxLayout.videoHeight);
-                                }
+                        {/* 原生 GPU 硬件加速视频播放器：第一帧首帧瞬间立现，完全告别黑屏 */}
+                        <video
+                            ref={videoRef}
+                            className="w-full h-full block object-contain pointer-events-none bg-black"
+                            crossOrigin="anonymous"
+                            playsInline
+                            preload="auto"
+                            onLoadedMetadata={handleLoadedMetadata}
+                            onLoadedData={handleLoadedData}
+                            onTimeUpdate={() => {
+                                const t = videoRef.current?.currentTime || 0;
+                                setCurrentTime(t);
+                                if (onTimeUpdate) onTimeUpdate(t);
                             }}
-                            className="w-full h-full block"
+                            onEnded={() => setIsPlaying(false)}
                         />
 
                         {/* 如果是裁剪模式（9:16/3:4/1:1/4:5/free），显示半透明暗色遮罩与构图框 */}
