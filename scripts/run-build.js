@@ -17,7 +17,7 @@ try {
 } catch (e) {}
 
 // 执行打包
-const cmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const cmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const child = spawn(cmd, ['tauri', 'build', '--no-bundle'], {
     stdio: 'inherit',
     env,

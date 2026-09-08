@@ -8,7 +8,7 @@ const devkitBin = path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'w64de
 const newPath = [cargoBin, devkitBin, process.env.PATH].filter(Boolean).join(path.delimiter);
 const env = { ...process.env, PATH: newPath };
 
-const cmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const cmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const child = spawn(cmd, ['tauri', 'dev'], {
     stdio: 'inherit',
     env,
