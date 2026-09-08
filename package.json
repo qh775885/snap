@@ -1,18 +1,19 @@
 {
   "name": "snap",
   "private": true,
+  "type": "module",
   "version": "2.2.0",
   "description": "快门 - 本地视频取景与横截竖图工具",
   "author": "qh775885",
   "license": "GPL-3.0",
   "scripts": {
-    "dev": "tauri dev",
+    "dev": "node scripts/run-dev.js",
     "dev:web": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "web": "vite",
     "preview": "vite preview",
     "verify": "vite build",
     "clean": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"if (Test-Path dist) { Remove-Item dist -Recurse -Force }; if (Test-Path release) { Remove-Item release -Recurse -Force }\"",
-    "build": "npx tauri build --no-bundle && powershell -NoProfile -ExecutionPolicy Bypass -Command \"$outDir = 'release/快门-免安装绿色版'; if (!(Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }; Copy-Item 'src-tauri/target/release/snap.exe' (Join-Path $outDir '快门.exe') -Force; Copy-Item 'src-tauri/target/release/WebView2Loader.dll' (Join-Path $outDir 'WebView2Loader.dll') -Force; Write-Host '绿色免安装版已输出至 release/快门-免安装绿色版/'\""
+    "build": "node scripts/run-build.js"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
