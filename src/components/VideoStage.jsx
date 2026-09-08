@@ -36,6 +36,15 @@ export function VideoStage({
     const [scrubHoverTime, setScrubHoverTime] = useState(null);
     const [scrubHoverPos, setScrubHoverPos] = useState(0);
 
+    // 快进快退步长档位：'normal' (标准) | 'medium' (中速) | 'fast' (快速)
+    const [speedGear, setSpeedGear] = useState(() => {
+        return localStorage.getItem('snap_speed_gear') || 'normal';
+    });
+    const speedGearRef = useRef(speedGear);
+    useEffect(() => {
+        speedGearRef.current = speedGear;
+    }, [speedGear]);
+
     // 裁切框屏幕像素几何
     const [boxLayout, setBoxLayout] = useState({
         videoLeft: 0,
@@ -251,7 +260,26 @@ export function VideoStage({
         return () => observer.disconnect();
     }, [updateLayout]);
 
-    // ===== 3. 人体工学级平滑步进引擎（点按 0.15s 微动，长按原生 GPU 倍速放映/倒带，松手瞬间急停） =====
+    // 步进速率档位参数模型：标准(默认) / 中速 / 快速
+    const SPEED_GEARS = {
+        normal: {
+            step: 0.15,
+            fastRates: [2.0, 5.0, 10.0],
+            rewindSteps: [0.04, 0.08, 0.14],
+        },
+        medium: {
+            step: 0.60,
+            fastRates: [4.0, 8.0, 14.0],
+            rewindSteps: [0.10, 0.18, 0.28],
+        },
+        fast: {
+            step: 2.50,
+            fastRates: [8.0, 16.0, 24.0],
+            rewindSteps: [0.25, 0.45, 0.70],
+        },
+    };
+
+    // ===== 3. 人体工学级平滑步进引擎（支持标准/中速/快速三档切换，点按微动，长按倍速放映/倒带，松手瞬间急停） =====
     const steppingRef = useRef({
         active: false,
         direction: 1, // 1: 前进, -1: 后退
@@ -271,8 +299,9 @@ export function VideoStage({
 
         const now = performance.now();
         const elapsed = now - state.startTime;
+        const gear = SPEED_GEARS[speedGearRef.current] || SPEED_GEARS.normal;
 
-        // 前 200ms 为单击点按判定缓冲期（按下瞬间已零延迟完成一次 0.15s 步进）
+        // 前 200ms 为单击点按判定缓冲期（按下瞬间已零延迟完成一次对应档位的单步跳跃）
         if (elapsed < 200) {
             state.rafId = requestAnimationFrame(stepEngine);
             return;
@@ -284,21 +313,21 @@ export function VideoStage({
             if (!state.isFastForwarding) {
                 state.isFastForwarding = true;
                 video.muted = true;
-                video.playbackRate = 2.0;
+                video.playbackRate = gear.fastRates[0];
                 video.play().catch(() => {});
                 setIsPlaying(true);
             }
 
             // 阶梯式平滑提速：按得越久越快
             if (elapsed > 2500) {
-                video.playbackRate = 10.0; // 极速赶路
+                video.playbackRate = gear.fastRates[2];
             } else if (elapsed > 1000) {
-                video.playbackRate = 5.0;  // 快速掠过
+                video.playbackRate = gear.fastRates[1];
             } else {
-                video.playbackRate = 2.0;  // 丝滑放映，微表情尽收眼底
+                video.playbackRate = gear.fastRates[0];
             }
         } else {
-            // 后退：启动硬件级自驱动倒带流水线（以微帧 0.04s 顺滑倒放，绝不卡顿）
+            // 后退：启动硬件级自驱动倒带流水线
             if (!state.isRewinding) {
                 state.isRewinding = true;
                 if (!video.paused) {
@@ -306,7 +335,7 @@ export function VideoStage({
                     setIsPlaying(false);
                 }
                 // 触发首步倒退，后续由 onSeeked 紧密接力自驱动
-                const nextTime = Math.max(0, video.currentTime - 0.04);
+                const nextTime = Math.max(0, video.currentTime - gear.rewindSteps[0]);
                 video.currentTime = nextTime;
                 setCurrentTime(nextTime);
             }
@@ -324,18 +353,15 @@ export function VideoStage({
 
             const now = performance.now();
             const elapsed = now - state.startTime;
+            const gear = SPEED_GEARS[speedGearRef.current] || SPEED_GEARS.normal;
 
-            // 根据长按时间平滑提速
-            let speedMultiplier = 1.0;
+            let step = gear.rewindSteps[0];
             if (elapsed > 2500) {
-                speedMultiplier = 3.5; // 极速倒退
+                step = gear.rewindSteps[2];
             } else if (elapsed > 1000) {
-                speedMultiplier = 2.0; // 较快倒退
-            } else {
-                speedMultiplier = 1.0; // 基础丝滑倒放 (~2x 速率)
+                step = gear.rewindSteps[1];
             }
 
-            const step = 0.04 * speedMultiplier;
             const nextTime = Math.max(0, video.currentTime - step);
 
             requestAnimationFrame(() => {
@@ -351,8 +377,10 @@ export function VideoStage({
         const video = videoRef.current;
         if (!video) return;
 
-        // 1. 按下瞬间 0 毫秒即时响应：跳动 0.15 秒（约 4~5 帧的动作微演进），大拇指点按手感清脆
-        const stepDelta = 0.15 * direction;
+        const gear = SPEED_GEARS[speedGearRef.current] || SPEED_GEARS.normal;
+
+        // 1. 按下瞬间 0 毫秒即时响应：跳动当前档位指定步长（标准0.15s / 中速0.6s / 快速2.5s）
+        const stepDelta = gear.step * direction;
         const targetTime = Math.max(0, Math.min(video.duration || 999999, video.currentTime + stepDelta));
         video.currentTime = targetTime;
         setCurrentTime(targetTime);
@@ -1049,6 +1077,33 @@ export function VideoStage({
                                 <span className="text-zinc-100 font-semibold">{formatSeconds(currentTime)}</span>
                                 <span className="text-zinc-600">/</span>
                                 <span className="text-zinc-500">{formatSeconds(duration)}</span>
+                            </div>
+
+                            <div className="h-3 w-px bg-white/[0.08] mx-1" />
+
+                            {/* 快进快退步进档位切换：标准 | 中速 | 快速 */}
+                            <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-md border border-white/[0.07] text-[11px] font-mono">
+                                {[
+                                    { id: 'normal', label: '标准', tip: '标准档：点按0.15s · 长按2x~10x (短视频/抓微表情)' },
+                                    { id: 'medium', label: '中速', tip: '中速档：点按0.6s · 长按4x~14x (中长视频/舞台直拍)' },
+                                    { id: 'fast', label: '快速', tip: '快速档：点按2.5s · 长按8x~24x (大长视频/电影巡航)' },
+                                ].map(gear => (
+                                    <button
+                                        key={gear.id}
+                                        onClick={() => {
+                                            setSpeedGear(gear.id);
+                                            localStorage.setItem('snap_speed_gear', gear.id);
+                                        }}
+                                        className={`px-2 py-0.5 rounded transition ${
+                                            speedGear === gear.id
+                                                ? 'bg-zinc-800 text-white font-medium shadow-sm border border-white/[0.08]'
+                                                : 'text-zinc-400 hover:text-zinc-200'
+                                        }`}
+                                        title={gear.tip}
+                                    >
+                                        {gear.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 

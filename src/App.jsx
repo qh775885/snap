@@ -143,15 +143,17 @@ export function App() {
     }, []);
 
     // 批量删除废片
-    const handleBatchDeleteSnapshots = useCallback(async (ids) => {
+    const handleBatchDeleteSnapshots = useCallback(async (ids, deleteDisk = true) => {
         const idSet = new Set(ids);
         const toDelete = snapshots.filter(s => idSet.has(s.id));
-        for (const item of toDelete) {
-            if (item.filePath) {
-                try {
-                    await deleteSnapshot(item.filePath);
-                } catch (e) {
-                    console.error('批量删除失败:', e);
+        if (deleteDisk) {
+            for (const item of toDelete) {
+                if (item.filePath) {
+                    try {
+                        await deleteSnapshot(item.filePath);
+                    } catch (e) {
+                        console.error('批量删除失败:', e);
+                    }
                 }
             }
         }

@@ -85,7 +85,7 @@ export async function saveSnapshot({ outputDir, filePrefix, format, base64Data }
 export async function deleteSnapshot(filePath) {
     const core = await getTauriCore();
     if (core && core.invoke) {
-        return await core.invoke('delete_snapshot', { filePath });
+        return await core.invoke('delete_snapshot', { filePath, file_path: filePath });
     }
     return true;
 }

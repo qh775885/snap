@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -110,14 +110,40 @@ fn save_snapshot(
 }
 
 #[tauri::command]
-fn delete_snapshot(file_path: String) -> Result<bool, String> {
-    let path = Path::new(&file_path);
-    if path.exists() {
-        fs::remove_file(path).map_err(|e| format!("删除文件失败: {}", e))?;
-        Ok(true)
-    } else {
-        Ok(false)
+#[allow(non_snake_case)]
+fn delete_snapshot(file_path: Option<String>, filePath: Option<String>) -> Result<bool, String> {
+    let raw = file_path.or(filePath).unwrap_or_default();
+    if raw.is_empty() {
+        return Ok(false);
     }
+
+    // 清洗 URL 前缀与各种编码
+    let clean = raw
+        .trim_start_matches("file://")
+        .trim_start_matches("asset://localhost/")
+        .trim_start_matches("asset://");
+
+    let path = PathBuf::from(clean);
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| format!("物理删除失败: {}", e))?;
+        return Ok(true);
+    }
+
+    // 尝试 Windows 反斜杠替换
+    let win_path = PathBuf::from(clean.replace('/', "\\"));
+    if win_path.exists() {
+        fs::remove_file(&win_path).map_err(|e| format!("物理删除失败: {}", e))?;
+        return Ok(true);
+    }
+
+    // 尝试正斜杠替换
+    let unix_path = PathBuf::from(clean.replace('\\', "/"));
+    if unix_path.exists() {
+        fs::remove_file(&unix_path).map_err(|e| format!("物理删除失败: {}", e))?;
+        return Ok(true);
+    }
+
+    Ok(false)
 }
 
 #[tauri::command]

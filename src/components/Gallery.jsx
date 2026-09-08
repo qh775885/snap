@@ -17,6 +17,11 @@ export function Gallery({
     // 看图器模式：当前查看的索引 (-1 为关闭)
     const [lightboxIndex, setLightboxIndex] = useState(-1);
 
+    // 是否同步彻底物理删除本地硬盘文件 (默认开启并记忆)
+    const [syncDiskDelete, setSyncDiskDelete] = useState(() => {
+        return localStorage.getItem('snap_sync_disk_delete') !== 'false';
+    });
+
     const listContainerRef = useRef(null);
     const prevSnapshotsCountRef = useRef(snapshots.length);
 
@@ -46,7 +51,7 @@ export function Gallery({
         const currIndex = snapshots.findIndex(s => s.id === id);
 
         if (onDeleteSnapshot) {
-            onDeleteSnapshot(id, filePath);
+            onDeleteSnapshot(id, syncDiskDelete ? filePath : null);
         }
 
         setSelectedIds(prev => {
@@ -71,13 +76,13 @@ export function Gallery({
             setSelectedId(null);
             setLightboxIndex(-1);
         }
-    }, [onDeleteSnapshot, snapshots, lightboxIndex]);
+    }, [onDeleteSnapshot, snapshots, lightboxIndex, syncDiskDelete]);
 
     // 批量删除
     const handleBatchDelete = () => {
         if (selectedIds.size === 0) return;
         if (onBatchDeleteSnapshots) {
-            onBatchDeleteSnapshots(Array.from(selectedIds));
+            onBatchDeleteSnapshots(Array.from(selectedIds), syncDiskDelete);
         }
         setSelectedIds(new Set());
         setSelectedId(null);
@@ -223,17 +228,35 @@ export function Gallery({
                     </div>
                 </div>
 
-                {/* 存储路径与更换 */}
-                <div className="flex items-center justify-between text-[11px] text-zinc-500 gap-2 font-mono">
-                    <span className="truncate" title={outputDir || '未指定输出目录'}>
-                        {outputDir ? outputDir.split(/[\\/]/).slice(-2).join('/') : '默认保存在同级/快门截图'}
-                    </span>
-                    <button
-                        onClick={onSelectOutputDir}
-                        className="text-zinc-400 hover:text-zinc-200 underline shrink-0 transition"
+                {/* 存储路径与同步删硬盘选项 */}
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 gap-2 font-mono pt-1 border-t border-white/[0.04]">
+                    <div className="flex items-center gap-1.5 truncate">
+                        <span className="truncate max-w-[130px]" title={outputDir || '未指定输出目录'}>
+                            {outputDir ? outputDir.split(/[\\/]/).slice(-2).join('/') : '同级/快门截图'}
+                        </span>
+                        <button
+                            onClick={onSelectOutputDir}
+                            className="text-zinc-400 hover:text-zinc-200 underline shrink-0 transition"
+                        >
+                            更换
+                        </button>
+                    </div>
+
+                    <label
+                        className="flex items-center gap-1 cursor-pointer text-zinc-400 hover:text-zinc-200 shrink-0 select-none text-[10px]"
+                        title="开启后，按 Del 键或删除截图时，同步彻底删除本地硬盘中的图片文件"
                     >
-                        更换
-                    </button>
+                        <input
+                            type="checkbox"
+                            checked={syncDiskDelete}
+                            onChange={(e) => {
+                                setSyncDiskDelete(e.target.checked);
+                                localStorage.setItem('snap_sync_disk_delete', e.target.checked ? 'true' : 'false');
+                            }}
+                            className="w-3 h-3 rounded bg-zinc-800 border border-zinc-700 accent-zinc-400 cursor-pointer"
+                        />
+                        <span>同步删硬盘</span>
+                    </label>
                 </div>
             </div>
 
