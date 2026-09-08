@@ -631,34 +631,33 @@ export function VideoStage({
                 <div className="absolute inset-0 bg-white/75 z-50 pointer-events-none transition-opacity duration-75" />
             )}
 
-            {/* 当没有加载视频时显示拖放引导 */}
-            {!videoSource && (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-4 pointer-events-none">
-                    <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-2xl">
-                        <Video className="w-14 h-14 text-slate-400 stroke-1" />
+            {/* 主工作视口区域：始终占据整个屏幕高度，居中呈现 */}
+            <div className="flex-1 w-full relative overflow-hidden flex items-center justify-center bg-[#07090e]">
+                {/* 未加载视频时的引导 */}
+                {!videoSource && (
+                    <div className="flex flex-col items-center justify-center text-slate-500 gap-4 pointer-events-none p-6 text-center">
+                        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-2xl">
+                            <Video className="w-14 h-14 text-slate-400 stroke-1" />
+                        </div>
+                        <div className="text-center">
+                            <p className="text-base font-medium text-slate-200">直接将视频拖拽进窗口即可播放</p>
+                            <p className="text-xs text-slate-400 mt-1">支持 MP4、TS、MKV、WebM、MOV 等全格式</p>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
+                            <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">油管/推特/IG 视频</span>
+                            <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">TS 流媒体片段</span>
+                            <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">4K / 1080P 高清</span>
+                        </div>
                     </div>
-                    <div className="text-center">
-                        <p className="text-base font-medium text-slate-200">直接将视频拖拽进窗口即可播放</p>
-                        <p className="text-xs text-slate-400 mt-1">支持 MP4、TS、MKV、WebM、MOV 等全格式</p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">油管/推特/IG 视频</span>
-                        <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">TS 流媒体片段</span>
-                        <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">4K / 1080P 高清</span>
-                    </div>
-                </div>
-            )}
+                )}
 
-            {/* 视频显示与构图裁切层 */}
-            {videoSource && boxLayout.videoWidth > 0 && (
-                <div className="flex-1 w-full relative overflow-hidden flex items-center justify-center">
+                {/* 加载视频后的舞台画面 */}
+                {videoSource && (
                     <div
-                        className="absolute"
+                        className="relative overflow-hidden flex items-center justify-center"
                         style={{
-                            left: `${boxLayout.videoLeft}px`,
-                            top: `${boxLayout.videoTop}px`,
-                            width: `${boxLayout.videoWidth}px`,
-                            height: `${boxLayout.videoHeight}px`,
+                            width: boxLayout.videoWidth > 0 ? `${boxLayout.videoWidth}px` : '100%',
+                            height: boxLayout.videoHeight > 0 ? `${boxLayout.videoHeight}px` : '100%',
                         }}
                     >
                         {/* 原生 GPU 硬件加速视频播放器：第一帧首帧瞬间立现，完全告别黑屏 */}
@@ -679,7 +678,7 @@ export function VideoStage({
                         />
 
                         {/* 如果是裁剪模式（9:16/3:4/1:1/4:5/free），显示半透明暗色遮罩与构图框 */}
-                        {cropMode !== 'full' && (
+                        {cropMode !== 'full' && boxLayout.videoWidth > 0 && (
                             <>
                                 {/* 左遮罩 */}
                                 <div
@@ -747,8 +746,8 @@ export function VideoStage({
                             </>
                         )}
                     </div>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* 专业级视频进度条与播放控制底栏 */}
             {videoSource && (
