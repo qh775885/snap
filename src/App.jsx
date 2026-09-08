@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Camera, FolderOpen, Video, Maximize2, Crop, Sparkles } from 'lucide-react';
+import { Camera, FolderOpen, Video, Maximize2, HelpCircle } from 'lucide-react';
 import { VideoStage } from './components/VideoStage';
 import { Gallery } from './components/Gallery';
 import { selectFolder, selectVideoFile, saveSnapshot, deleteSnapshot, toAssetUrl, setupNativeFileDrop } from './bridge';
@@ -11,7 +11,6 @@ export function App() {
 
     // 构图模式：默认 'full' (截取全屏原图)，支持 '9:16' | '3:4' | '1:1' | '4:5'
     const [cropMode, setCropMode] = useState('full');
-    const [resolutionPreset, setResolutionPreset] = useState('original');
     const [cropOffset, setCropOffset] = useState(0);
 
     // 输出目录与截图图库
@@ -160,39 +159,36 @@ export function App() {
     }, [snapshots]);
 
     return (
-        <div className="flex flex-col w-screen h-screen bg-[#0a0c10] text-slate-100 overflow-hidden font-sans">
-            {/* 极简精致顶栏 */}
-            <header className="h-14 px-4 bg-[#11141c] border-b border-slate-800/90 flex items-center justify-between shrink-0 select-none z-40">
-                {/* 品牌与打开视频 */}
+        <div className="flex flex-col w-screen h-screen bg-[#09090b] text-zinc-100 overflow-hidden font-sans">
+            {/* 顶栏：现代硬朗极简工业美学 */}
+            <header className="h-12 px-3.5 bg-[#0d0e11] border-b border-white/[0.07] flex items-center justify-between shrink-0 select-none z-40">
+                {/* 左侧：品牌与打开视频 */}
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shadow-inner">
-                            <Camera className="w-4 h-4 text-emerald-400" />
+                        <div className="w-7 h-7 rounded-md bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center shadow-inner text-zinc-200">
+                            <Camera className="w-3.5 h-3.5" />
                         </div>
-                        <div className="flex flex-col">
-                            <span className="text-sm font-bold tracking-wide text-white">快门</span>
-                            <span className="text-[10px] text-slate-400 font-mono -mt-0.5">snap lite</span>
-                        </div>
+                        <span className="text-xs font-semibold tracking-wider text-zinc-100 uppercase font-mono">Snap 快门</span>
                     </div>
 
-                    <div className="h-4 w-px bg-slate-800 mx-1" />
+                    <div className="h-3.5 w-px bg-white/[0.08]" />
 
                     <button
                         onClick={handleOpenVideo}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-xs font-semibold text-emerald-300 transition border border-emerald-500/30"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800/80 hover:bg-zinc-700/80 text-xs font-medium text-zinc-200 hover:text-white transition border border-white/[0.06] shadow-sm"
                     >
-                        <Video className="w-3.5 h-3.5 text-emerald-400" />
+                        <Video className="w-3.5 h-3.5 text-zinc-400" />
                         <span>打开视频</span>
                     </button>
 
                     {/* 视频信息指示 */}
                     {videoMeta.name && (
-                        <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-900/80 border border-slate-800 text-xs text-slate-300 max-w-xs truncate">
-                            <span className="truncate max-w-[160px] font-medium" title={videoMeta.name}>
+                        <div className="flex items-center gap-2 px-2 py-0.5 rounded bg-zinc-900/90 border border-white/[0.06] text-xs text-zinc-300 max-w-sm truncate">
+                            <span className="truncate max-w-[180px] font-medium text-zinc-200" title={videoMeta.name}>
                                 {videoMeta.name}
                             </span>
                             {videoMeta.width > 0 && (
-                                <span className="font-mono text-[11px] text-slate-400 shrink-0">
+                                <span className="font-mono text-[11px] text-zinc-500 shrink-0 border-l border-zinc-800 pl-2">
                                     {videoMeta.width}×{videoMeta.height}
                                 </span>
                             )}
@@ -200,71 +196,52 @@ export function App() {
                     )}
                 </div>
 
-                {/* 构图截取模式与分辨率选项 */}
-                <div className="flex items-center gap-3 text-xs">
-                    {/* 构图比例：全屏原图 / 9:16 / 3:4 / 1:1 / 4:5 */}
-                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-800">
-                        <span className="px-2 text-slate-400 font-medium text-[11px]">截图构图</span>
+                {/* 中间：截图构图比例选择器（Segmented Control） */}
+                <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-lg border border-white/[0.07] text-xs">
+                    <button
+                        onClick={() => setCropMode('full')}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition ${
+                            cropMode === 'full'
+                                ? 'bg-zinc-750 text-white font-medium shadow-sm bg-zinc-800 border border-white/[0.08]'
+                                : 'text-zinc-400 hover:text-zinc-200'
+                        }`}
+                        title="全屏原图（100% 原始画幅完整抓取）"
+                    >
+                        <Maximize2 className="w-3 h-3" />
+                        <span>原画全屏</span>
+                    </button>
 
+                    {['9:16', '3:4', '1:1', '4:5'].map(ratio => (
                         <button
-                            onClick={() => setCropMode('full')}
-                            className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition ${
-                                cropMode === 'full'
-                                    ? 'bg-emerald-500 text-slate-950 font-bold shadow'
-                                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                            key={ratio}
+                            onClick={() => setCropMode(ratio)}
+                            className={`px-2.5 py-1 rounded-md font-mono text-xs transition ${
+                                cropMode === ratio
+                                    ? 'bg-zinc-800 text-white font-medium shadow-sm border border-white/[0.08]'
+                                    : 'text-zinc-400 hover:text-zinc-200'
                             }`}
-                            title="原比例全屏截取整张视频画面"
+                            title={`构图直裁：${ratio}`}
                         >
-                            <Maximize2 className="w-3 h-3" />
-                            <span>全屏原图</span>
+                            {ratio}
                         </button>
-
-                        {['9:16', '3:4', '1:1', '4:5'].map(ratio => (
-                            <button
-                                key={ratio}
-                                onClick={() => setCropMode(ratio)}
-                                className={`px-2 py-1 rounded-md font-mono font-medium transition ${
-                                    cropMode === ratio
-                                        ? 'bg-emerald-500 text-slate-950 font-bold shadow'
-                                        : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                                }`}
-                                title={`截取 ${ratio} 竖图/方图`}
-                            >
-                                {ratio}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* 尺寸预设 */}
-                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-800">
-                        <span className="px-2 text-slate-400 font-medium text-[11px]">画质尺寸</span>
-                        {[
-                            { id: 'original', label: '原画无损' },
-                            { id: '1080p', label: '1080P' },
-                            { id: '720p', label: '720P' },
-                        ].map(preset => (
-                            <button
-                                key={preset.id}
-                                onClick={() => setResolutionPreset(preset.id)}
-                                className={`px-2 py-1 rounded-md font-medium transition ${
-                                    resolutionPreset === preset.id
-                                        ? 'bg-emerald-500 text-slate-950 font-bold shadow'
-                                        : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                                }`}
-                            >
-                                {preset.label}
-                            </button>
-                        ))}
-                    </div>
+                    ))}
                 </div>
 
-                {/* 快捷手感提示徽标 */}
-                <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800/80">
-                    <span className="text-emerald-400 font-medium">侧键: 平滑步进</span>
-                    <span className="text-slate-700">|</span>
-                    <span className="text-emerald-400 font-medium">右键: 毫秒截图</span>
-                    <span className="text-slate-700">|</span>
-                    <span className="text-rose-400 font-medium">Del: 秒删废片</span>
+                {/* 右侧：极简操作指引 */}
+                <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono">
+                    <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+                        <span className="flex items-center gap-1">
+                            <kbd className="px-1 py-0.5 rounded bg-zinc-800/90 border border-zinc-700/60 text-zinc-300 text-[10px]">右键</kbd> 快门
+                        </span>
+                        <span className="text-zinc-600">·</span>
+                        <span className="flex items-center gap-1">
+                            <kbd className="px-1 py-0.5 rounded bg-zinc-800/90 border border-zinc-700/60 text-zinc-300 text-[10px]">侧键</kbd> 逐帧
+                        </span>
+                        <span className="text-zinc-600">·</span>
+                        <span className="flex items-center gap-1">
+                            <kbd className="px-1 py-0.5 rounded bg-zinc-800/90 border border-zinc-700/60 text-zinc-300 text-[10px]">Del</kbd> 删废片
+                        </span>
+                    </div>
                 </div>
             </header>
 
@@ -276,7 +253,6 @@ export function App() {
                         videoMeta={videoMeta}
                         onFileLoaded={handleFileLoaded}
                         cropMode={cropMode}
-                        resolutionPreset={resolutionPreset}
                         cropOffset={cropOffset}
                         onCropOffsetChange={setCropOffset}
                         onShutterCapture={handleShutterCapture}

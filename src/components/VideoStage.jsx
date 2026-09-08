@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Video, Play, Pause, RotateCcw, Crosshair, ChevronLeft, ChevronRight, Maximize2, Crop } from 'lucide-react';
+import { Video, Film, Play, Pause, RotateCcw, Crosshair, ChevronLeft, ChevronRight, Maximize2, Crop } from 'lucide-react';
 import mpegts from 'mpegts.js';
 
 export function VideoStage({
@@ -7,7 +7,6 @@ export function VideoStage({
     videoMeta,         // { name, path }
     onFileLoaded,      // 拖拽或选择新视频
     cropMode = 'full', // 'full' (全屏原画) | '9:16' | '3:4' | '1:1' | '4:5' | 'free' (自由框选)
-    resolutionPreset = 'original', // 'original' | '1080p' | '720p'
     cropOffset = 0,    // -1 (最左) 到 1 (最右)
     onCropOffsetChange,
     onShutterCapture,  // 截图回调 ({ base64, width, height, timeSec })
@@ -431,29 +430,9 @@ export function VideoStage({
             sourceH = Math.min(vh - sourceY, Math.round(boxLayout.boxHeight * scaleY));
         }
 
-        // 根据 resolutionPreset 确定输出画布尺寸
-        let outW = sourceW;
-        let outH = sourceH;
-
-        if (resolutionPreset === '1080p') {
-            const ratio = sourceW / sourceH;
-            if (ratio < 1) { // 竖图
-                outH = 1920;
-                outW = Math.round(outH * ratio);
-            } else { // 横图
-                outW = 1920;
-                outH = Math.round(outW / ratio);
-            }
-        } else if (resolutionPreset === '720p') {
-            const ratio = sourceW / sourceH;
-            if (ratio < 1) {
-                outH = 1280;
-                outW = Math.round(outH * ratio);
-            } else {
-                outW = 1280;
-                outH = Math.round(outW / ratio);
-            }
-        }
+        // 100% 原始物理像素高保真无损输出
+        const outW = sourceW;
+        const outH = sourceH;
 
         const offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = outW;
@@ -468,7 +447,7 @@ export function VideoStage({
             0, 0, outW, outH
         );
 
-        const base64 = offscreenCanvas.toDataURL('image/jpeg', 0.95);
+        const base64 = offscreenCanvas.toDataURL('image/jpeg', 0.98);
 
         if (onShutterCapture) {
             onShutterCapture({
@@ -478,7 +457,7 @@ export function VideoStage({
                 timeSec: video.currentTime,
             });
         }
-    }, [boxLayout, cropMode, resolutionPreset, onShutterCapture]);
+    }, [boxLayout, cropMode, onShutterCapture]);
 
     const handleContextMenu = (e) => {
         e.preventDefault();
@@ -615,8 +594,8 @@ export function VideoStage({
     return (
         <div
             ref={containerRef}
-            className={`relative w-full h-full bg-[#0a0c10] flex flex-col items-center justify-between select-none overflow-hidden ${
-                isDragOver ? 'ring-2 ring-emerald-500 bg-[#0f141c]' : ''
+            className={`relative w-full h-full bg-[#07080a] flex flex-col items-center justify-between select-none overflow-hidden ${
+                isDragOver ? 'ring-1 ring-zinc-400 bg-zinc-900/30' : ''
             }`}
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}
@@ -628,25 +607,20 @@ export function VideoStage({
         >
             {/* 快门击发白闪遮罩 */}
             {isShutterFlashing && (
-                <div className="absolute inset-0 bg-white/75 z-50 pointer-events-none transition-opacity duration-75" />
+                <div className="absolute inset-0 bg-white/70 z-50 pointer-events-none transition-opacity duration-75" />
             )}
 
-            {/* 主工作视口区域：始终占据整个屏幕高度，居中呈现 */}
-            <div className="flex-1 w-full relative overflow-hidden flex items-center justify-center bg-[#07090e]">
+            {/* 主工作视口区域：居中呈现 */}
+            <div className="flex-1 w-full relative overflow-hidden flex items-center justify-center bg-[#050608]">
                 {/* 未加载视频时的引导 */}
                 {!videoSource && (
-                    <div className="flex flex-col items-center justify-center text-slate-500 gap-4 pointer-events-none p-6 text-center">
-                        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-2xl">
-                            <Video className="w-14 h-14 text-slate-400 stroke-1" />
+                    <div className="flex flex-col items-center justify-center text-zinc-500 gap-4 pointer-events-none p-8 text-center max-w-sm">
+                        <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-white/[0.08] flex items-center justify-center shadow-lg text-zinc-400">
+                            <Film className="w-6 h-6 stroke-[1.5]" />
                         </div>
-                        <div className="text-center">
-                            <p className="text-base font-medium text-slate-200">直接将视频拖拽进窗口即可播放</p>
-                            <p className="text-xs text-slate-400 mt-1">支持 MP4、TS、MKV、WebM、MOV 等全格式</p>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
-                            <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">油管/推特/IG 视频</span>
-                            <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">TS 流媒体片段</span>
-                            <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">4K / 1080P 高清</span>
+                        <div className="space-y-1">
+                            <p className="text-sm font-medium text-zinc-200">拖入本地视频文件即可取景</p>
+                            <p className="text-xs text-zinc-500">支持 MP4、TS、MKV、WebM、MOV 等全部主流格式</p>
                         </div>
                     </div>
                 )}
@@ -660,7 +634,7 @@ export function VideoStage({
                             height: boxLayout.videoHeight > 0 ? `${boxLayout.videoHeight}px` : '100%',
                         }}
                     >
-                        {/* 原生 GPU 硬件加速视频播放器：第一帧首帧瞬间立现，完全告别黑屏 */}
+                        {/* 原生 GPU 硬件加速视频播放器 */}
                         <video
                             ref={videoRef}
                             className="w-full h-full block object-contain pointer-events-none bg-black"
@@ -682,17 +656,17 @@ export function VideoStage({
                             <>
                                 {/* 左遮罩 */}
                                 <div
-                                    className="absolute top-0 bottom-0 left-0 bg-black/70 backdrop-blur-[1px] pointer-events-none transition-all duration-75"
+                                    className="absolute top-0 bottom-0 left-0 bg-black/70 pointer-events-none transition-all duration-75"
                                     style={{ width: `${Math.max(0, boxLayout.boxX - boxLayout.videoLeft)}px` }}
                                 />
                                 {/* 右遮罩 */}
                                 <div
-                                    className="absolute top-0 bottom-0 right-0 bg-black/70 backdrop-blur-[1px] pointer-events-none transition-all duration-75"
+                                    className="absolute top-0 bottom-0 right-0 bg-black/70 pointer-events-none transition-all duration-75"
                                     style={{ width: `${Math.max(0, boxLayout.videoWidth - (boxLayout.boxX - boxLayout.videoLeft + boxLayout.boxWidth))}px` }}
                                 />
                                 {/* 上遮罩 */}
                                 <div
-                                    className="absolute left-0 right-0 top-0 bg-black/70 backdrop-blur-[1px] pointer-events-none"
+                                    className="absolute left-0 right-0 top-0 bg-black/70 pointer-events-none"
                                     style={{
                                         height: `${Math.max(0, boxLayout.boxY - boxLayout.videoTop)}px`,
                                         left: `${boxLayout.boxX - boxLayout.videoLeft}px`,
@@ -701,7 +675,7 @@ export function VideoStage({
                                 />
                                 {/* 下遮罩 */}
                                 <div
-                                    className="absolute left-0 right-0 bottom-0 bg-black/70 backdrop-blur-[1px] pointer-events-none"
+                                    className="absolute left-0 right-0 bottom-0 bg-black/70 pointer-events-none"
                                     style={{
                                         height: `${Math.max(0, boxLayout.videoHeight - (boxLayout.boxY - boxLayout.videoTop + boxLayout.boxHeight))}px`,
                                         left: `${boxLayout.boxX - boxLayout.videoLeft}px`,
@@ -709,9 +683,9 @@ export function VideoStage({
                                     }}
                                 />
 
-                                {/* 裁切框 */}
+                                {/* 裁切框：现代工业级取景框设计 */}
                                 <div
-                                    className="absolute cursor-grab active:cursor-grabbing border-2 border-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.35)] hover:border-emerald-300 transition-colors"
+                                    className="absolute cursor-grab active:cursor-grabbing border border-white/80 shadow-[0_0_0_1px_rgba(0,0,0,0.6)]"
                                     style={{
                                         left: `${boxLayout.boxX - boxLayout.videoLeft}px`,
                                         top: `${boxLayout.boxY - boxLayout.videoTop}px`,
@@ -720,8 +694,14 @@ export function VideoStage({
                                     }}
                                     onMouseDown={handleCropMouseDown}
                                 >
-                                    {/* 三等分辅助线 */}
-                                    <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-25">
+                                    {/* 四角精密 L 型取景标 (Corner Marks) */}
+                                    <div className="absolute top-0 left-0 w-2.5 h-2.5 border-t-2 border-l-2 border-white pointer-events-none" />
+                                    <div className="absolute top-0 right-0 w-2.5 h-2.5 border-t-2 border-r-2 border-white pointer-events-none" />
+                                    <div className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b-2 border-l-2 border-white pointer-events-none" />
+                                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b-2 border-r-2 border-white pointer-events-none" />
+
+                                    {/* 三等分九宫格辅助线 */}
+                                    <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-20">
                                         <div className="border-r border-b border-white" />
                                         <div className="border-r border-b border-white" />
                                         <div className="border-b border-white" />
@@ -734,12 +714,12 @@ export function VideoStage({
                                     </div>
 
                                     {/* 准心 */}
-                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
-                                        <Crosshair className="w-5 h-5 text-emerald-400" />
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+                                        <Crosshair className="w-4 h-4 text-white" />
                                     </div>
 
-                                    {/* 比例提示标 */}
-                                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 border border-emerald-500/40 text-[11px] font-mono text-emerald-300 pointer-events-none backdrop-blur-sm">
+                                    {/* 比例指示微标 */}
+                                    <div className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-black/70 border border-white/10 text-[10px] font-mono text-zinc-300 pointer-events-none backdrop-blur-md">
                                         {cropMode}
                                     </div>
                                 </div>
@@ -751,28 +731,28 @@ export function VideoStage({
 
             {/* 专业级视频进度条与播放控制底栏 */}
             {videoSource && (
-                <div className="w-full bg-[#11141c]/95 border-t border-slate-800 px-4 py-2.5 flex flex-col gap-2 z-30 shrink-0 select-none">
+                <div className="w-full bg-[#0d0e11]/95 border-t border-white/[0.07] px-4 py-2 flex flex-col gap-1.5 z-30 shrink-0 select-none">
                     {/* 交互式进度条 */}
                     <div
                         ref={progressBarRef}
                         onMouseDown={handleProgressBarMouseDown}
                         onMouseMove={handleProgressBarMouseMove}
                         onMouseLeave={() => setScrubHoverTime(null)}
-                        className="relative h-2 hover:h-3.5 bg-slate-800 rounded-full cursor-pointer transition-all flex items-center group"
+                        className="relative h-1.5 hover:h-2.5 bg-zinc-800 rounded-full cursor-pointer transition-all flex items-center group"
                     >
                         {/* 播放进度填色 */}
                         <div
-                            className="h-full bg-emerald-500 rounded-full relative"
+                            className="h-full bg-zinc-200 rounded-full relative"
                             style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
                         >
                             {/* 进度滑块圆点 */}
-                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow border-2 border-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow border border-zinc-950 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
 
                         {/* 悬浮时间预览气泡 */}
                         {scrubHoverTime !== null && (
                             <div
-                                className="absolute -top-7 px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono text-slate-200 pointer-events-none -translate-x-1/2 shadow-lg"
+                                className="absolute -top-6 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-mono text-zinc-200 pointer-events-none -translate-x-1/2 shadow-lg"
                                 style={{ left: `${scrubHoverPos}px` }}
                             >
                                 {formatSeconds(scrubHoverTime)}
@@ -786,52 +766,37 @@ export function VideoStage({
                             {/* 播放/暂停按钮 */}
                             <button
                                 onClick={togglePlay}
-                                className="p-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition shadow"
+                                className="p-1 rounded-md bg-zinc-100 hover:bg-white text-zinc-950 font-bold transition shadow-sm"
                                 title="播放 / 暂停 (空格键)"
                             >
-                                {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                                {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
                             </button>
 
                             {/* 单帧后退/前进 */}
                             <button
                                 onClick={() => startStepping(-1)}
-                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                                className="p-1 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/[0.06] transition"
                                 title="单帧后退 (侧键后退 / 左方向键)"
                             >
-                                <ChevronLeft className="w-4 h-4" />
+                                <ChevronLeft className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 onClick={() => startStepping(1)}
-                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                                className="p-1 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/[0.06] transition"
                                 title="单帧前进 (侧键前进 / 右方向键)"
                             >
-                                <ChevronRight className="w-4 h-4" />
+                                <ChevronRight className="w-3.5 h-3.5" />
                             </button>
 
-                            {/* 时间戳与帧数 */}
-                            <div className="flex items-center gap-1.5 font-mono text-slate-300 ml-2">
-                                <span className="text-white font-semibold">{formatSeconds(currentTime)}</span>
-                                <span className="text-slate-600">/</span>
-                                <span className="text-slate-400">{formatSeconds(duration)}</span>
+                            {/* 时间戳与总时长 */}
+                            <div className="flex items-center gap-1.5 font-mono text-zinc-400 ml-2 text-xs">
+                                <span className="text-zinc-100 font-semibold">{formatSeconds(currentTime)}</span>
+                                <span className="text-zinc-600">/</span>
+                                <span className="text-zinc-500">{formatSeconds(duration)}</span>
                             </div>
                         </div>
 
-                        {/* 中部模式提示 */}
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                            {cropMode === 'full' ? (
-                                <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                                    <Maximize2 className="w-3.5 h-3.5" />
-                                    <span>全屏原比例截取</span>
-                                </span>
-                            ) : (
-                                <span className="flex items-center gap-1 text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                                    <Crop className="w-3.5 h-3.5" />
-                                    <span>{cropMode} 构图裁切中</span>
-                                </span>
-                            )}
-                        </div>
-
-                        {/* 右侧快门击发与重置 */}
+                        {/* 右侧快门击发与居中 */}
                         <div className="flex items-center gap-2">
                             {cropMode !== 'full' && (
                                 <button
@@ -839,8 +804,8 @@ export function VideoStage({
                                         if (onCropOffsetChange) onCropOffsetChange(0);
                                         setBoxScale(1.0);
                                     }}
-                                    className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
-                                    title="恢复居中"
+                                    className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-white/[0.06] transition text-xs"
+                                    title="裁切框恢复居中"
                                 >
                                     <RotateCcw className="w-3 h-3" />
                                     <span>居中</span>
@@ -849,10 +814,12 @@ export function VideoStage({
 
                             <button
                                 onClick={triggerShutter}
-                                className="flex items-center gap-1 px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-md transition active:scale-95"
-                                title="截取当前画面 (鼠标右键)"
+                                className="flex items-center gap-1.5 px-3.5 py-1 rounded-md bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition active:scale-95"
+                                title="截取当前高保真画面 (鼠标右键 / S 键)"
                             >
-                                <span>快门 (右键)</span>
+                                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                                <span>快门</span>
+                                <span className="text-[10px] font-mono text-zinc-500 font-normal">右键</span>
                             </button>
                         </div>
                     </div>

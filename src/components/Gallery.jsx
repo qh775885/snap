@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Trash2, FolderOpen, ExternalLink, CheckSquare, Square, X, ChevronLeft, ChevronRight, LayoutGrid, Columns } from 'lucide-react';
+import { Trash2, FolderOpen, ExternalLink, CheckSquare, Square, X, ChevronLeft, ChevronRight, LayoutGrid, Columns, Image as ImageIcon } from 'lucide-react';
 import { openPath } from '../bridge';
 
 export function Gallery({
@@ -178,22 +178,22 @@ export function Gallery({
     };
 
     return (
-        <aside className="w-96 h-full bg-[#11141a] border-l border-slate-800 flex flex-col select-none text-slate-200">
+        <aside className="w-80 h-full bg-[#0d0e11] border-l border-white/[0.07] flex flex-col select-none text-zinc-200">
             {/* 顶部标题与目录信息栏 */}
-            <div className="p-3 border-b border-slate-800/90 flex flex-col gap-2 bg-[#141820]">
+            <div className="p-3 border-b border-white/[0.07] flex flex-col gap-2 bg-[#090a0d]">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm tracking-wide text-white">靶场图库</span>
-                        <span className="px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                            {snapshots.length} 张
+                        <span className="font-semibold text-xs tracking-wider text-zinc-200 uppercase font-mono">图库清单</span>
+                        <span className="px-1.5 py-0.5 rounded text-[11px] font-mono bg-zinc-800 text-zinc-300 border border-white/[0.06]">
+                            {snapshots.length}
                         </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                         {/* 单双列切换按钮 */}
                         <button
                             onClick={() => setColumnsMode(prev => prev === 1 ? 2 : 1)}
-                            className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                            className="p-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-white/[0.06] transition"
                             title={columnsMode === 1 ? "切换为双列排布" : "切换为单列大图"}
                         >
                             {columnsMode === 1 ? <LayoutGrid className="w-3.5 h-3.5" /> : <Columns className="w-3.5 h-3.5" />}
@@ -202,10 +202,10 @@ export function Gallery({
                         {/* 多选模式切换 */}
                         <button
                             onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
-                            className={`px-2 py-1 rounded text-xs transition ${
+                            className={`px-2 py-1 rounded text-xs transition border ${
                                 isMultiSelectMode
-                                    ? 'bg-emerald-500 text-slate-950 font-bold'
-                                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                                    ? 'bg-zinc-200 text-zinc-950 font-semibold border-white'
+                                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border-white/[0.06]'
                             }`}
                             title="多选清理"
                         >
@@ -215,7 +215,7 @@ export function Gallery({
                         {/* 打开目录 */}
                         <button
                             onClick={() => outputDir && openPath(outputDir)}
-                            className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+                            className="p-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-white/[0.06] transition"
                             title="在资源管理器中打开输出目录"
                         >
                             <FolderOpen className="w-3.5 h-3.5" />
@@ -224,13 +224,13 @@ export function Gallery({
                 </div>
 
                 {/* 存储路径与更换 */}
-                <div className="flex items-center justify-between text-[11px] text-slate-400 gap-2">
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 gap-2 font-mono">
                     <span className="truncate" title={outputDir || '未指定输出目录'}>
-                        {outputDir ? outputDir.split(/[\\/]/).slice(-2).join('/') : '默认保存在视频同级/快门截图'}
+                        {outputDir ? outputDir.split(/[\\/]/).slice(-2).join('/') : '默认保存在同级/快门截图'}
                     </span>
                     <button
                         onClick={onSelectOutputDir}
-                        className="text-emerald-400 hover:underline shrink-0 font-medium"
+                        className="text-zinc-400 hover:text-zinc-200 underline shrink-0 transition"
                     >
                         更换
                     </button>
@@ -239,7 +239,7 @@ export function Gallery({
 
             {/* 多选批量清理工具条 */}
             {isMultiSelectMode && (
-                <div className="px-3 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs">
+                <div className="px-3 py-2 bg-zinc-900 border-b border-white/[0.07] flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => {
@@ -249,18 +249,18 @@ export function Gallery({
                                     setSelectedIds(new Set(snapshots.map(s => s.id)));
                                 }
                             }}
-                            className="text-slate-400 hover:text-white flex items-center gap-1"
+                            className="text-zinc-400 hover:text-white flex items-center gap-1"
                         >
-                            {selectedIds.size === snapshots.length ? <CheckSquare className="w-3.5 h-3.5 text-emerald-400" /> : <Square className="w-3.5 h-3.5" />}
+                            {selectedIds.size === snapshots.length ? <CheckSquare className="w-3.5 h-3.5 text-zinc-200" /> : <Square className="w-3.5 h-3.5" />}
                             <span>全选</span>
                         </button>
-                        <span className="text-slate-400">已选 {selectedIds.size} 张</span>
+                        <span className="text-zinc-500 text-xs">已选 {selectedIds.size} 张</span>
                     </div>
 
                     {selectedIds.size > 0 && (
                         <button
                             onClick={handleBatchDelete}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-medium transition"
+                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/20 font-medium transition text-xs"
                         >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span>删除所选</span>
@@ -273,17 +273,17 @@ export function Gallery({
             <div
                 ref={listContainerRef}
                 className={`flex-1 overflow-y-auto p-2.5 custom-scrollbar ${
-                    columnsMode === 2 ? 'grid grid-cols-2 gap-2.5 content-start' : 'space-y-2.5'
+                    columnsMode === 2 ? 'grid grid-cols-2 gap-2 content-start' : 'space-y-2'
                 }`}
             >
                 {snapshots.length === 0 ? (
-                    <div className="col-span-2 h-full flex flex-col items-center justify-center text-slate-500 text-xs text-center p-6 gap-2.5">
-                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                            <span className="text-2xl">📸</span>
+                    <div className="col-span-2 h-full flex flex-col items-center justify-center text-zinc-600 text-xs text-center p-6 gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-white/[0.06] flex items-center justify-center text-zinc-500">
+                            <ImageIcon className="w-5 h-5 stroke-[1.5]" />
                         </div>
-                        <p className="font-medium text-slate-300">尚未截取画面</p>
-                        <p className="text-[11px] text-slate-400 leading-relaxed">
-                            取景中点击 <span className="text-emerald-400 font-bold">鼠标右键</span> 或按 <span className="text-emerald-400 font-bold">S</span> 键瞬间截取
+                        <p className="font-medium text-zinc-400">暂无截图</p>
+                        <p className="text-[11px] text-zinc-500 leading-relaxed font-mono">
+                            右键快门或按 S 键击发
                         </p>
                     </div>
                 ) : (
@@ -296,26 +296,25 @@ export function Gallery({
                                 key={item.id}
                                 onClick={() => setSelectedId(item.id)}
                                 onDoubleClick={() => setLightboxIndex(idx)}
-                                className={`group relative rounded-lg overflow-hidden border transition-all cursor-pointer flex flex-col bg-[#0b0e14] ${
+                                className={`group relative rounded-lg overflow-hidden border transition-all cursor-pointer flex flex-col bg-zinc-950/60 ${
                                     isSelected
-                                        ? 'border-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)] ring-1 ring-emerald-400'
-                                        : 'border-slate-800 hover:border-slate-700'
+                                        ? 'border-zinc-300 ring-1 ring-zinc-300 shadow-md'
+                                        : 'border-white/[0.07] hover:border-zinc-600'
                                 }`}
                             >
-                                {/* 完整原比例画面展示容器（彻底杜绝裁切） */}
+                                {/* 完整原比例画面展示容器 */}
                                 <div
-                                    className="relative w-full overflow-hidden bg-black/60 flex items-center justify-center"
+                                    className="relative w-full overflow-hidden bg-black/80 flex items-center justify-center"
                                     style={{
-                                        // 保证每张卡片根据自身实际截取尺寸自适应比例，横图宽、竖图长
                                         aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : '9 / 16',
-                                        maxHeight: columnsMode === 1 ? '380px' : '220px',
-                                        minHeight: '110px',
+                                        maxHeight: columnsMode === 1 ? '360px' : '200px',
+                                        minHeight: '100px',
                                     }}
                                 >
                                     <img
                                         src={item.base64}
                                         alt={item.fileName}
-                                        className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-150"
+                                        className="w-full h-full object-contain transition-transform duration-150"
                                         loading="lazy"
                                     />
 
@@ -326,21 +325,21 @@ export function Gallery({
                                             className="absolute top-1.5 left-1.5 p-1 rounded bg-black/70 backdrop-blur-sm z-10"
                                         >
                                             {isChecked ? (
-                                                <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                                                <CheckSquare className="w-3.5 h-3.5 text-zinc-200" />
                                             ) : (
-                                                <Square className="w-3.5 h-3.5 text-slate-400" />
+                                                <Square className="w-3.5 h-3.5 text-zinc-400" />
                                             )}
                                         </button>
                                     )}
 
-                                    {/* 悬浮操作图标 */}
+                                    {/* 悬浮删除操作 */}
                                     <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleDeleteSingle(item.id, item.filePath);
                                             }}
-                                            className="p-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 hover:text-white backdrop-blur-sm"
+                                            className="p-1 rounded bg-black/80 hover:bg-rose-950/80 text-zinc-400 hover:text-rose-300 border border-white/10 backdrop-blur-sm transition"
                                             title="删除此张 (Del 键)"
                                         >
                                             <Trash2 className="w-3 h-3" />
@@ -348,8 +347,8 @@ export function Gallery({
                                     </div>
 
                                     {/* 底部尺寸与序号标签 */}
-                                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between pointer-events-none text-[9px] font-mono text-slate-300 bg-black/70 px-1.5 py-0.5 rounded backdrop-blur-sm">
-                                        <span className="text-emerald-300 font-semibold">#{idx + 1}</span>
+                                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between pointer-events-none text-[9px] font-mono text-zinc-400 bg-black/75 px-1.5 py-0.5 rounded backdrop-blur-sm border border-white/[0.06]">
+                                        <span className="text-zinc-200 font-semibold">#{idx + 1}</span>
                                         <span>{item.width}×{item.height}</span>
                                     </div>
                                 </div>
@@ -359,37 +358,31 @@ export function Gallery({
                 )}
             </div>
 
-            {/* 底部极速操作提示 */}
-            <div className="p-2.5 bg-[#0d1017] border-t border-slate-800 text-[11px] text-slate-400 flex flex-col gap-1">
-                <div className="flex items-center justify-between">
-                    <span className="text-slate-300">💡 双击卡片进入大图看图器</span>
-                    <span className="font-mono text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">Del 秒删</span>
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>左右箭头切换，双击看全貌</span>
-                    <span>最新截图排在最顶层</span>
-                </div>
+            {/* 底部极简状态指示 */}
+            <div className="px-3 py-2 bg-[#090a0d] border-t border-white/[0.07] text-[10px] font-mono text-zinc-500 flex items-center justify-between">
+                <span>双击看大图</span>
+                <span><kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700/60 text-zinc-400">Del</kbd> 删废片</span>
             </div>
 
-            {/* 沉浸式专业看图器（支持在大图模式下方向键快速切图、Del 键直接秒删废片） */}
+            {/* 沉浸式专业看图器 */}
             {currentLightboxItem && (
                 <div
                     onClick={() => setLightboxIndex(-1)}
-                    className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-between p-4 select-none animate-in fade-in duration-100"
+                    className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-between p-4 select-none animate-in fade-in duration-100"
                 >
                     {/* 顶部控制栏 */}
                     <div
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full flex items-center justify-between px-4 py-2 bg-slate-900/80 border border-slate-800 rounded-xl z-20 backdrop-blur-md"
+                        className="w-full flex items-center justify-between px-4 py-2 bg-zinc-900/90 border border-white/[0.08] rounded-xl z-20 backdrop-blur-md"
                     >
                         <div className="flex items-center gap-3">
-                            <span className="font-mono font-bold text-emerald-400 text-sm">
-                                第 {lightboxIndex + 1} / {snapshots.length} 张
+                            <span className="font-mono font-bold text-zinc-100 text-sm">
+                                {lightboxIndex + 1} / {snapshots.length}
                             </span>
-                            <span className="text-xs font-mono text-slate-400">
+                            <span className="text-xs font-mono text-zinc-400">
                                 {currentLightboxItem.width} × {currentLightboxItem.height}
                             </span>
-                            <span className="text-xs text-slate-500 truncate max-w-sm" title={currentLightboxItem.fileName}>
+                            <span className="text-xs text-zinc-500 truncate max-w-sm" title={currentLightboxItem.fileName}>
                                 {currentLightboxItem.fileName}
                             </span>
                         </div>
@@ -398,7 +391,7 @@ export function Gallery({
                             {/* 在系统资源管理器中定位 */}
                             <button
                                 onClick={() => openPath(currentLightboxItem.filePath)}
-                                className="flex items-center gap-1 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs transition"
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs border border-white/[0.06] transition"
                                 title="在资源管理器中高亮定位该文件"
                             >
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -408,18 +401,18 @@ export function Gallery({
                             {/* 秒删当前大图按钮 */}
                             <button
                                 onClick={() => handleDeleteSingle(currentLightboxItem.id, currentLightboxItem.filePath)}
-                                className="flex items-center gap-1 px-3 py-1 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold shadow transition"
-                                title="直接删除这张截图 (按键盘 Del 键)"
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-rose-600/90 hover:bg-rose-600 text-white text-xs font-medium shadow-sm transition"
+                                title="删除这张截图 (Del 键)"
                             >
                                 <Trash2 className="w-3.5 h-3.5" />
-                                <span>删除当前张 (Del)</span>
+                                <span>删除 (Del)</span>
                             </button>
 
                             {/* 关闭看图器 */}
                             <button
                                 onClick={() => setLightboxIndex(-1)}
-                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition ml-2"
-                                title="退出看图器 (Esc)"
+                                className="p-1 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-white/[0.06] transition ml-1"
+                                title="退出 (Esc)"
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -434,38 +427,38 @@ export function Gallery({
                         {/* 上一张按钮 */}
                         <button
                             onClick={handleLightboxPrev}
-                            className="absolute left-6 top-1/2 -translate-y-1/2 p-3 rounded-full bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 shadow-2xl transition z-10"
-                            title="上一张 (左箭头 / 滚轮向上)"
+                            className="absolute left-6 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/10 shadow-2xl transition z-10"
+                            title="上一张 (左箭头)"
                         >
-                            <ChevronLeft className="w-6 h-6" />
+                            <ChevronLeft className="w-5 h-5" />
                         </button>
 
-                        {/* 大图画面：保证 100% 完整原比例呈现，不论横屏还是竖屏都不裁切 */}
+                        {/* 大图画面 */}
                         <img
                             src={currentLightboxItem.base64}
                             alt={currentLightboxItem.fileName}
-                            className="max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl border border-slate-800/80"
+                            className="max-h-[84vh] max-w-[86vw] object-contain rounded-lg shadow-2xl border border-white/[0.08]"
                         />
 
                         {/* 下一张按钮 */}
                         <button
                             onClick={handleLightboxNext}
-                            className="absolute right-6 top-1/2 -translate-y-1/2 p-3 rounded-full bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 shadow-2xl transition z-10"
-                            title="下一张 (右箭头 / 滚轮向下)"
+                            className="absolute right-6 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/10 shadow-2xl transition z-10"
+                            title="下一张 (右箭头)"
                         >
-                            <ChevronRight className="w-6 h-6" />
+                            <ChevronRight className="w-5 h-5" />
                         </button>
                     </div>
 
-                    {/* 底部看图快捷操作提示胶囊 */}
+                    {/* 底部看图快捷操作提示 */}
                     <div
                         onClick={(e) => e.stopPropagation()}
-                        className="px-4 py-1.5 rounded-full bg-slate-900/85 border border-slate-800 text-xs text-slate-400 flex items-center gap-3 backdrop-blur-md"
+                        className="px-3.5 py-1 rounded-full bg-zinc-900/90 border border-white/[0.08] text-[11px] font-mono text-zinc-400 flex items-center gap-2.5 backdrop-blur-md"
                     >
-                        <span>◀ ▶ 方向键快速翻片</span>
-                        <span className="text-slate-700">|</span>
-                        <span className="text-rose-400 font-bold">Del 键瞬间淘汰废片并自动切下一张</span>
-                        <span className="text-slate-700">|</span>
+                        <span>◀ ▶ 切换</span>
+                        <span className="text-zinc-700">·</span>
+                        <span>Del 秒删</span>
+                        <span className="text-zinc-700">·</span>
                         <span>Esc 退出</span>
                     </div>
                 </div>
