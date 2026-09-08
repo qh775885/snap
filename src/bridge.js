@@ -141,6 +141,13 @@ export async function closeWindow() {
     }
 }
 
+export async function startDraggingWindow() {
+    const core = await getTauriCore();
+    if (core && core.invoke) {
+        return await core.invoke('app_start_dragging');
+    }
+}
+
 // Tauri 2.0 原生窗口文件拖拽监听（彻底解决 HTML5 drop 在桌面端无法拿到路径的问题）
 export async function setupNativeFileDrop(onDropFilePaths) {
     try {

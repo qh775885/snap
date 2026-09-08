@@ -194,6 +194,11 @@ fn app_close(window: tauri::Window) -> Result<(), String> {
     window.close().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn app_start_dragging(window: tauri::Window) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -216,7 +221,8 @@ pub fn run() {
             check_media_file,
             app_minimize,
             app_toggle_maximize,
-            app_close
+            app_close,
+            app_start_dragging
         ])
         .run(tauri::generate_context!())
         .expect("运行快门应用程序失败");

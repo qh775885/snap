@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Camera, FolderOpen, Video, Maximize2, Crop, Minus, Square, X } from 'lucide-react';
 import { VideoStage } from './components/VideoStage';
 import { Gallery } from './components/Gallery';
-import { selectFolder, selectVideoFile, saveSnapshot, deleteSnapshot, toAssetUrl, setupNativeFileDrop, minimizeWindow, toggleMaximizeWindow, closeWindow } from './bridge';
+import { selectFolder, selectVideoFile, saveSnapshot, deleteSnapshot, toAssetUrl, setupNativeFileDrop, minimizeWindow, toggleMaximizeWindow, closeWindow, startDraggingWindow } from './bridge';
 
 export function App() {
     // 当前视频源
@@ -160,15 +160,34 @@ export function App() {
         setSnapshots(prev => prev.filter(s => !idSet.has(s.id)));
     }, [snapshots]);
 
+    // 沉浸式顶栏原生窗口拖动与双击最大化
+    const handleHeaderMouseDown = (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest('button, a, input, select, textarea, [data-no-drag="true"]')) {
+            return;
+        }
+        startDraggingWindow();
+    };
+
+    const handleHeaderDoubleClick = (e) => {
+        if (e.target.closest('button, a, input, select, textarea, [data-no-drag="true"]')) {
+            return;
+        }
+        toggleMaximizeWindow();
+    };
+
     return (
         <div className="flex flex-col w-screen h-screen bg-[#09090b] text-zinc-100 overflow-hidden font-sans">
-            {/* 顶栏：沉浸式一体化无框工业美学 (支持原生窗口拖拽与窗口控制) */}
+            {/* 顶栏：沉浸式一体化无框工业美学 (原生窗口拖拽与窗口控制) */}
             <header
+                onMouseDown={handleHeaderMouseDown}
+                onDoubleClick={handleHeaderDoubleClick}
                 data-tauri-drag-region
-                className="h-11 px-3.5 bg-[#0c0d11] border-b border-white/[0.07] flex items-center justify-between shrink-0 select-none z-40"
+                style={{ WebkitAppRegion: 'drag' }}
+                className="h-11 px-3.5 bg-[#0c0d11] border-b border-white/[0.07] flex items-center justify-between shrink-0 select-none z-40 cursor-default"
             >
                 {/* 左侧：品牌与打开视频 */}
-                <div className="flex items-center gap-3" data-tauri-drag-region="false">
+                <div className="flex items-center gap-3" data-no-drag="true" style={{ WebkitAppRegion: 'no-drag' }}>
                     <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded bg-zinc-800 border border-zinc-700/60 flex items-center justify-center shadow-inner text-zinc-200">
                             <Camera className="w-3 h-3" />
@@ -202,7 +221,7 @@ export function App() {
                 </div>
 
                 {/* 中间：截图构图比例选择器（Segmented Control） */}
-                <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-lg border border-white/[0.07] text-xs" data-tauri-drag-region="false">
+                <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-lg border border-white/[0.07] text-xs" data-no-drag="true" style={{ WebkitAppRegion: 'no-drag' }}>
                     <button
                         onClick={() => setCropMode('full')}
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition ${
@@ -246,7 +265,7 @@ export function App() {
                 </div>
 
                 {/* 右侧：极简操作指引 + 原生沉浸式窗口控件 */}
-                <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono" data-tauri-drag-region="false">
+                <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono" data-no-drag="true" style={{ WebkitAppRegion: 'no-drag' }}>
                     <div className="flex items-center gap-2 text-[11px] text-zinc-400">
                         <span className="flex items-center gap-1">
                             <kbd className="px-1 py-0.5 rounded bg-zinc-800/90 border border-zinc-700/60 text-zinc-300 text-[10px]">右键</kbd> 快门

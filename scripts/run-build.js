@@ -7,7 +7,8 @@ const cargoBin = path.join(os.homedir(), '.cargo', 'bin');
 const devkitBin = path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'w64devkit', 'bin');
 
 const newPath = [cargoBin, devkitBin, process.env.PATH].filter(Boolean).join(path.delimiter);
-const env = { ...process.env, PATH: newPath };
+// 限制 Cargo 编译并发核心数为 4，避免全核心满载导致风扇狂转
+const env = { ...process.env, PATH: newPath, CARGO_BUILD_JOBS: '4' };
 
 // 尝试关闭前台冲突进程
 try {
